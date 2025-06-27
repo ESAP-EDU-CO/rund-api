@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  rund-api:
+    # Construye la imagen usando el Dockerfile en el directorio actual (.)
+    build: .
+    # Asigna un nombre descriptivo al contenedor
+    container_name: rund-api
+    # Mapea el puerto 3000 de tu máquina (host) al puerto 80 del contenedor (Apache)
+    # Podrás acceder a la API en http://172.16.234.52:3000
+    ports:
+      - "3000:80"
+    # Monta el directorio actual del proyecto dentro del contenedor.
+    # Esto es ideal para desarrollo: cualquier cambio que hagas en tu código
+    # se reflejará instantáneamente dentro del contenedor sin necesidad de reconstruir la imagen.
+    volumes:
+      - .:/var/www/html
