@@ -12,7 +12,11 @@ services:
       - ./logs:/var/www/html/logs
       - ./tmp:/var/www/html/tmp      
       # Development only: mount app directory for live changes
-      - ./app:/var/www/html
+      - type: bind
+        source: ./app
+        target: /var/www/html
+      # Preserve the vendor directory from the image build, preventing it from being overwritten by the bind mount.
+      - /var/www/html/vendor
     environment:
       - PHP_OPCACHE_ENABLE=1
       - PHP_OPCACHE_REVALIDATE_FREQ=0
