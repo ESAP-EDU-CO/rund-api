@@ -1,70 +1,89 @@
-# Usar una imagen base oficial de PHP 8.3 con Apache sobre Alpine Linux
-FROM php:8.3-apache-alpine
+# Use official PHP 8.3 FPM Alpine image (latest stable)
+FROM php:8.3-fpm-alpine3.19
 
-# Definir el directorio de trabajo y la raíz de documentos de Apache
-ENV APACHE_DOCUMENT_ROOT /var/www/html
-WORKDIR ${APACHE_DOCUMENT_ROOT}
+# Set working directory
+WORKDIR /var/www/html
 
-# Habilitar mod_rewrite de Apache para URLs amigables si se necesita en el futuro
-RUN a2enmod rewrite
+# Install system dependencies and LibreOffice
+RUN apk update && apk add --no-cache \
+  # Basic utilities
+  nano \
+  zip \
+  unzip \
+  curl \
+  wget \
+  # LibreOffice and dependencies
+  libreoffice \
+  libreoffice-writer \
+  libreoffice-calc \
+  # Image processing libraries for PHPOffice
+  libpng-dev \
+  libjpeg-turbo-dev \
+  freetype-dev \
+  libzip-dev \
+  icu-dev \
+  # XML libraries (already included but needed for compilation)
+  libxml2-dev \
+  # Process management
+  supervisor \
+  # Web server
+  nginx \
+  # Clean up
+  && rm -rf /var/cache/apk/*
 
-# Instalar dependencias del sistema operativo
-# - build-base, autoconf, etc., son necesarios para compilar extensiones de PHP.
-# - icu-dev, libzip-dev, etc., son librerías para las extensiones.
-# - libreoffice-writer nos provee el binario 'soffice' para conversiones.
-# - nano y zip son las utilidades que solicitaste.
-# - Se añade el repositorio 'community' de Alpine para poder instalar LibreOffice.
-RUN apk update && \
-    apk add --no-cache \
-        $PHPIZE_DEPS \
-        icu-dev \
-        libzip-dev \
-        libxml2-dev \
-        libxslt-dev \
-        oniguruma-dev \
-        # Dependencias para GD
-        libpng-dev \
-        libjpeg-turbo-dev \
-        freetype-dev \
-        # Utilidades solicitadas
-        nano \
-        zip \
-        # LibreOffice (requiere el repositorio community)
-        libreoffice-writer --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
+# Configure and install only the PHP extensions that need compilation
+# Note: xml, dom, xmlreader, xmlwriter, simplexml, fileinfo, mbstring are already built-in
+RUN docker-php-ext-configure gd \
+  --with-freetype \
+  --with-jpeg \
+  && docker-php-ext-install -j$(nproc) \
+  gd \
+  zip \
+  intl \
+  opcache
 
-# Instalar las extensiones de PHP requeridas por tus dependencias (PHPOffice, DomPDF)
-# - Se determinaron a partir de tu composer.lock
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
-    docker-php-ext-install -j$(nproc) \
-        bcmath \
-        ctype \
-        curl \
-        dom \
-        gd \
-        iconv \
-        intl \
-        mbstring \
-        pdo_mysql \
-        simplexml \
-        xsl \
-        zip
-
-# Instalar Composer (manejador de dependencias de PHP)
+# Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copiar los archivos de dependencias y luego instalar para aprovechar el caché de Docker
-COPY composer.json composer.lock ./
-RUN composer install --no-interaction --no-plugins --no-scripts --no-dev --optimize-autoloader
+# Copy composer files first for better layer caching
+COPY composer.json composer.lock* ./
 
-# Copiar el resto del código de la aplicación
-COPY . .
+# Install PHP dependencies
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
 
-# Copiar y dar permisos de ejecución al script de inicio
-COPY start.sh /usr/local/bin/start.sh
-RUN chmod +x /usr/local/bin/start.sh
+# Copy application code
+COPY app/ ./app/
+COPY start.sh ./
+RUN chmod +x start.sh
 
-# Exponer el puerto 80 del contenedor (Apache)
-EXPOSE 80
+# Copy configuration files
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+COPY docker/fpm-pool.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Comando que se ejecutará al iniciar el contenedor
-CMD ["/usr/local/bin/start.sh"]
+# Create necessary directories
+RUN mkdir -p /var/www/html/logs \
+  && mkdir -p /var/www/html/tmp \
+  && mkdir -p /var/log/supervisor \
+  && mkdir -p /run/nginx \
+  && mkdir -p /run/php
+
+# Set proper permissions
+RUN chown -R www-data:www-data /var/www/html \
+  && chown -R www-data:www-data /var/log/supervisor \
+  && chown -R www-data:www-data /run/nginx \
+  && chown -R www-data:www-data /run/php
+
+# Don't switch to non-root user - supervisor needs root privileges
+# USER www-data
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/app/ || exit 1
+
+# Start supervisor as root
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

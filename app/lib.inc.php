@@ -48,14 +48,21 @@ function getCruce(string $x, string $y): string // Cruza categorías y devuelve 
 }
 function getCategorias() // Devuelve un árbol de categorias (no Taxonomía) desde la categoría principal
 {
+  global $base;
+  $respuesta = [];
+  $respuesta["uuidCat_URL"] = $base . REST . "repository/getCategoriesFolder";
   $uuidCat = json_decode(consulta("repository/getCategoriesFolder"), true)["uuid"];
+  $respuesta["consulta_total"] = json_decode(consulta("repository/getCategoriesFolder"), true);
+  $respuesta["uuidCat"] = $uuidCat;
+  $respuesta["tieneHijos_URL"] = $base . REST . "folder/getChildren?fldId=$uuidCat";
   $tieneHijos = json_decode(consulta("folder/getProperties?fldId=$uuidCat"), true)["hasChildren"];
   if ($tieneHijos) {
     $uuidRUND = json_decode(consulta("folder/getChildren?fldId=$uuidCat"), true)["folder"]["uuid"];
     $carpetas = getArbolCarpetas($uuidRUND);
     return json_encode($carpetas);
   } else {
-    return "{\"error\":\"La categoría principal no tiene nodos hijos.\"}";
+    $respuesta["error"] = "La categoría principal no tiene nodos hijos.";
+    return json_encode($respuesta);
   }
 }
 function creaCategorias(array $categorias): array // Recibe categorías con el formato ["path" => "/okm:categories/RUTA/A/LA/NUEVA/CATEGORIA", ...]

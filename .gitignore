@@ -1,5 +1,14 @@
-# Composer dependencies
-/vendor/
-
-# El maldito .DS_Store
+vendor/
+logs/
+tmp/
+.env
+.env.local
+*.log
 .DS_Store
+Thumbs.db
+app/temp/*
+app/uploads/*
+app/exports/*
+!app/temp/.gitkeep
+!app/uploads/.gitkeep
+!app/exports/.gitkeep
