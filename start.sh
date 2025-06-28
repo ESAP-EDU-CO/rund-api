@@ -5,7 +5,8 @@ echo "=== RUND-API Post-Installation Setup ==="
 # Create necessary directories if they don't exist
 mkdir -p /var/www/html/logs
 mkdir -p /var/www/html/tmp
-mkdir -p /var/www/html/app/data
+# Data folder not used in this setup
+# mkdir -p /var/www/html/data
 
 # Set proper permissions
 chown -R www-data:www-data /var/www/html/logs
@@ -65,14 +66,14 @@ fi
 # Warm up opcache if enabled
 if [ "$PHP_OPCACHE_ENABLE" = "1" ]; then
   echo "Warming up OPcache..."
-  find /var/www/html/app -name "*.php" -exec php -l {} \; >/dev/null 2>&1
+  find /var/www/html -name "*.php" -exec php -l {} \; >/dev/null 2>&1
   echo "✓ OPcache warmed up"
 fi
 
 # Create a simple health check endpoint test
 echo "Testing API endpoint..."
-if curl -f http://localhost:3000/app/ >/dev/null 2>&1; then
-  echo "✓ API endpoint is responding"
+if curl -f http://localhost:3000/health >/dev/null 2>&1; then
+  echo "✓ API health endpoint is responding"
 else
   echo "⚠ API endpoint not responding (this is normal during startup)"
 fi

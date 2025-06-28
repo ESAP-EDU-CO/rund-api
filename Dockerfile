@@ -51,10 +51,11 @@ COPY composer.json composer.lock* ./
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
 
-# Copy application code
-COPY app/ ./app/
-COPY start.sh ./
-RUN chmod +x start.sh
+# Copy application code from the 'app' directory into the web root
+COPY app/ .
+# Copy start script to a standard binary location and make it executable
+COPY start.sh /usr/local/bin/start.sh
+RUN chmod +x /usr/local/bin/start.sh
 
 # Copy configuration files
 COPY docker/nginx.conf /etc/nginx/nginx.conf
@@ -83,7 +84,7 @@ EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/app/ || exit 1
+  CMD curl -f http://localhost:3000/health || exit 1
 
 # Start supervisor as root
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

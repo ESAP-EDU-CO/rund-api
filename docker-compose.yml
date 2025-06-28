@@ -10,12 +10,9 @@ services:
     volumes:
       # Mount logs and tmp directories for persistence
       - ./logs:/var/www/html/logs
-      - ./tmp:/var/www/html/tmp
-      # Mount data directory if you need to persist uploaded files
-      - ./app/data:/var/www/html/app/data
+      - ./tmp:/var/www/html/tmp      
       # Development only: mount app directory for live changes
-      # Uncomment next line for development
-      # - ./app:/var/www/html/app
+      - ./app:/var/www/html
     environment:
       - PHP_OPCACHE_ENABLE=1
       - PHP_OPCACHE_REVALIDATE_FREQ=0
@@ -30,7 +27,7 @@ services:
     networks:
       - rund-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/app/"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
