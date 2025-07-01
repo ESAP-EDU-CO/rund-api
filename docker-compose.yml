@@ -16,6 +16,7 @@ services:
     environment:
       # Configura la JVM para que use una fuente de entropía no bloqueante, evitando cuelgues en el arranque.
       - JAVA_OPTS=-Djava.security.egd=file:/dev/./urandom
+      - TZ=America/Bogota # Configura explícitamente la zona horaria
 
   rund-api:
     image: rund-api:latest # El nombre de la imagen
@@ -37,6 +38,7 @@ services:
       # Preserve the vendor directory from the image build, preventing it from being overwritten by the bind mount.
       - /var/www/html/vendor
     environment:
+      - TZ=America/Bogota # Configura explícitamente la zona horaria
       - PHP_OPCACHE_ENABLE=1
       - PHP_OPCACHE_REVALIDATE_FREQ=0
       - PHP_OPCACHE_VALIDATE_TIMESTAMPS=1
