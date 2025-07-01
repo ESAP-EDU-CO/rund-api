@@ -1,7 +1,7 @@
 <?php
 error_reporting(E_ALL ^ (E_NOTICE | E_WARNING | E_DEPRECATED));
 date_default_timezone_set('America/Bogota');
-require 'vendor/autoload.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\Chart\Chart;
 use PhpOffice\PhpSpreadsheet\Chart\DataSeries;
@@ -12,59 +12,21 @@ use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpWord\TemplateProcessor;
 use PhpOffice\PhpWord\Element\TextRun;
 
-$dataInit = json_decode(file_get_contents("data.json"), true);
-$base = $dataInit["openKM"];
+// Lee la URL de la API externa (OpenKM) desde la variable de entorno 'EXTERNAL_API_URL'
+// para desacoplar la configuración del código. Esta variable se define en docker-compose.yml.
+// Si la variable de entorno no está definida, recurre al archivo data.json como respaldo.
+$base = getenv('EXTERNAL_API_URL');
+if ($base === false) {
+  $base = json_decode(file_get_contents(__DIR__ . "/data/data.json"), true)["openKM"];
+}
 const USER = "okmAdmin";
 const PASSWORD = "admin";
 const REST = "services/rest/";
-$nomCats = json_decode(file_get_contents("labels.json"), true);
+$nomCats = json_decode(file_get_contents(__DIR__ . "/data/labels.json"), true);
 
 const TEMP_DIR = __DIR__ . "/tmp/";
 
 // ---------- Funciones API OpenKM
-function getCruce(string $x, string $y): string // Cruza categorías y devuelve una matriz de dos dimensiones
-{
-  $subCatX = getUUIDHijos($x);
-  $subCatY = getUUIDHijos($y);
-  $filas = [];
-  $allDocsX = [];
-  foreach ($subCatX as $catX) $allDocsX[] = getDocsFromCat($catX["uuid"]);
-  foreach ($subCatY as $catY) {
-    $docsY = getDocsFromCat($catY["uuid"]);
-    $intData = [];
-    foreach ($allDocsX as $docsX) {
-      $intData[] = count(getCoincidencias($docsX, $docsY));
-    }
-    $fila = ["label" => $catY["label"], "data" => $intData];
-    $filas[] = $fila;
-  }
-  $data = [
-    "nomCol" => getPathGeneraLabel($x),
-    "nomFil" => getPathGeneraLabel($y),
-    "cols" => array_map("getLabels", $subCatX),
-    "filas" => $filas
-  ];
-  return json_encode($data);
-}
-function getCategorias() // Devuelve un árbol de categorias (no Taxonomía) desde la categoría principal
-{
-  global $base;
-  $respuesta = [];
-  $respuesta["uuidCat_URL"] = $base . REST . "repository/getCategoriesFolder";
-  $uuidCat = json_decode(consulta("repository/getCategoriesFolder"), true)["uuid"];
-  $respuesta["consulta_total"] = json_decode(consulta("repository/getCategoriesFolder"), true);
-  $respuesta["uuidCat"] = $uuidCat;
-  $respuesta["tieneHijos_URL"] = $base . REST . "folder/getChildren?fldId=$uuidCat";
-  $tieneHijos = json_decode(consulta("folder/getProperties?fldId=$uuidCat"), true)["hasChildren"];
-  if ($tieneHijos) {
-    $uuidRUND = json_decode(consulta("folder/getChildren?fldId=$uuidCat"), true)["folder"]["uuid"];
-    $carpetas = getArbolCarpetas($uuidRUND);
-    return json_encode($carpetas);
-  } else {
-    $respuesta["error"] = "La categoría principal no tiene nodos hijos.";
-    return json_encode($respuesta);
-  }
-}
 function creaCategorias(array $categorias): array // Recibe categorías con el formato ["path" => "/okm:categories/RUTA/A/LA/NUEVA/CATEGORIA", ...]
 {
   foreach ($categorias as $categoria) {
@@ -204,12 +166,15 @@ function consulta(string $consulta, string $tipo = "GET", array|string|null $pos
   }
   curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
   $resp = curl_exec($curl);
-  if (curl_errno($curl)) $resp = curl_error($curl);
+  if (curl_errno($curl)) {
+    $resp = curl_error($curl);
+    print "Me intenté conectar a $base" . REST . $consulta . " y obtuve el error: $resp<br>";
+  }
   curl_close($curl);
   return $resp;
 }
-function getDocsFromCat($catUUID) // Devuelve los documentos de una categoría dada
-{
+function getDocsFromCat($catUUID): array
+{ // Devuelve los documentos de una categoría dada
   $docs =  getDocumentosCategorizados($catUUID);
   $docUUID = [];
   if (esArraySimple($docs)) {
@@ -230,12 +195,12 @@ function getUUIDHijos(string $padreUUID): array // Obtiene los uuid de los hijos
   if (!esArraySimple($hijos)) $hijos = [$hijos];
   return array_map("getID", $hijos);
 }
-function getID($obj) // Obtiene el "label" (no nativo de OpenKM) y extrae el uuid de un objeto
+function getID($obj): array // Obtiene el "label" (no nativo de OpenKM) y extrae el uuid de un objeto
 {
   global $nomCats;
   return ["label" => $nomCats[array_pop(explode("/", $obj["path"]))], "uuid" => $obj["uuid"]];
 }
-function getLabels($obj) // Extrae el campo "label"  de un objeto QUE YA LO TIENE
+function getLabels($obj): array // Extrae el campo "label"  de un objeto QUE YA LO TIENE
 {
   return $obj["label"];
 }
@@ -376,7 +341,7 @@ function autoFitCols($hoja)
     $hoja->getColumnDimension($column->getColumnIndex())->setAutoSize(true);
   }
 }
-function creaTablaDatos($inicio, $hoja, $dataNomFil, $posIniCol, $posFinCol, $dataNomCol, $dataCols, $dataFilas)
+function creaTablaDatos($inicio, $hoja, $dataNomFil, $posIniCol, $posFinCol, $dataNomCol, $dataCols, $dataFilas): array
 {
   $posNomCol = [];
   $posLabel = [];
@@ -408,7 +373,7 @@ function creaTablaDatos($inicio, $hoja, $dataNomFil, $posIniCol, $posFinCol, $da
     "posData" => $posData,
   ];
 }
-function creaGraficoBarras($valores, $categorias, $etiquetas, $titulo, $hoja, $posGrafico)
+function creaGraficoBarras($valores, $categorias, $etiquetas, $titulo, $hoja, $posGrafico): void
 {
   $series = new DataSeries(
     DataSeries::TYPE_BARCHART,
@@ -702,4 +667,314 @@ function csvToJsonByColumns($csvArray)
     }
   }
   return json_encode($jsonResult, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+}
+
+// --- Handlers para el enrutador ---
+
+const ROOT_TAX_DOCS = "/okm:root/RUND/DOCUMENTOS/";
+const ROOT_CTGR_DOCS = "/okm:categories/RUND/DOCUMENTOS/";
+const RUTA_PLANTILLAS = "plantillas/";
+const RUTA_CERTIFICADOS = RUTA_PLANTILLAS . "certificados/";
+const RUTA_FIRMAS = ROOT_TAX_DOCS . "FIRMAS/";
+const RUTA_LISTADOS = ROOT_TAX_DOCS . "LISTADOS/";
+const CTGR_LISTADOS = ROOT_CTGR_DOCS . "LISTADOS/";
+const CTGR_FIRMAS = ROOT_CTGR_DOCS . "FIRMAS/";
+
+function handleGetCategorias(): array // Devuelve un árbol de categorias (no Taxonomía) desde la categoría principal
+{
+  global $base;
+  $respuesta = [];
+  $respuesta["uuidCat_URL"] = $base . REST . "repository/getCategoriesFolder";
+  $uuidCat = json_decode(consulta("repository/getCategoriesFolder"), true)["uuid"];
+  $respuesta["consulta_total"] = json_decode(consulta("repository/getCategoriesFolder"), true);
+  $respuesta["uuidCat"] = $uuidCat;
+  $respuesta["tieneHijos_URL"] = $base . REST . "folder/getChildren?fldId=$uuidCat";
+  $tieneHijos = json_decode(consulta("folder/getProperties?fldId=$uuidCat"), true)["hasChildren"];
+  if ($tieneHijos) {
+    $uuidRUND = json_decode(consulta("folder/getChildren?fldId=$uuidCat"), true)["folder"]["uuid"];
+    $carpetas = getArbolCarpetas($uuidRUND);
+    return $carpetas;
+  } else {
+    $respuesta["error"] = "La categoría principal no tiene nodos hijos.";
+    return $respuesta;
+  }
+}
+function handleGetCruce(string $x, string $y): array // Cruza categorías y devuelve una matriz de dos dimensiones
+{
+  if (!isset($_GET['x']) || !isset($_GET['y'])) {
+    return ["error" => "Faltan parámetros para getCruce"];
+  }
+  $subCatX = getUUIDHijos($x);
+  $subCatY = getUUIDHijos($y);
+  $filas = [];
+  $allDocsX = [];
+  foreach ($subCatX as $catX) $allDocsX[] = getDocsFromCat($catX["uuid"]);
+  foreach ($subCatY as $catY) {
+    $docsY = getDocsFromCat($catY["uuid"]);
+    $intData = [];
+    foreach ($allDocsX as $docsX) {
+      $intData[] = count(getCoincidencias($docsX, $docsY));
+    }
+    $fila = ["label" => $catY["label"], "data" => $intData];
+    $filas[] = $fila;
+  }
+  $data = [
+    "nomCol" => getPathGeneraLabel($x),
+    "nomFil" => getPathGeneraLabel($y),
+    "cols" => array_map("getLabels", $subCatX),
+    "filas" => $filas
+  ];
+  return $data;
+}
+function handleGetCsvData(array $params): array
+{
+  if (!isset($params["categoria"]) || !isset($params["tipo"]) || !isset($params["nombre"]) || !isset($params["extension"])) {
+    return ["error" => "Faltan parámetros para getCsvData"];
+  }
+
+  $path = ROOT_TAX_DOCS . textoAnombreCarpeta($params["categoria"] . "/" . $params["tipo"]);
+  $nombreArchivo = $params["nombre"] . $params["extension"];
+  $query = "search/find?name=" . urlencode($nombreArchivo) . "&path=" . urlencode($path);
+  $resp = json_decode(consulta($query), true);
+
+  if ($resp) {
+    $nodo = (esArraySimple($resp["queryResult"])) ? $resp["queryResult"][0]["node"] : $resp["queryResult"]["node"];
+    if ($nodo["path"] == "$path/$nombreArchivo") {
+      $headers = ["Accept: application/octet-stream"];
+      $uuid = $nodo["uuid"];
+      $consulta = "document/getContent?docId=$uuid";
+      $csvContent = consulta($consulta, "GET", null, $headers);
+      $regex = '/([^\\"]|)(\\n)+([^\\"])/m';
+      $doble = '/  /m';
+      $csvContent = preg_replace($regex, "$1 $3", $csvContent);
+      $csvContent = preg_replace($doble, " ", $csvContent);
+      $lines = explode(PHP_EOL, $csvContent);
+      $respCSV = [];
+      foreach ($lines as $line) {
+        if (!empty(trim($line))) $respCSV[] = str_getcsv($line);
+      }
+      $jsonCSV = csvToJsonByColumns($respCSV);
+      // Genera una respuesta correcta, con el CSV convertido a JSON
+      return [
+        "arrayCSV" => $respCSV,
+        "columnasCSV" => json_decode($jsonCSV, true),
+        "rawCSV" => $csvContent,
+      ];
+    } else {
+      return ["error" => "La ruta del archivo encontrado " . $nodo["path"] . " no coincide exactamente con la proporcionada $path/$nombreArchivo"];
+    }
+  }
+  return ["error" => "No se encontró el CSV solicitado"];
+}
+function handleGetCertificado(array $getParams, array $postData): void
+{
+  $estructura = $postData;
+  $plantilla = $getParams["plantilla"];
+  $tipo = $getParams["tipo"];
+  $nombrePlantilla = "$plantilla.docx";
+  $phpTemplate = creaCertificado(RUTA_CERTIFICADOS, $nombrePlantilla, $estructura);
+
+  if ($tipo == "docx") {
+    header("Content-Description: File Transfer");
+    header('Content-Disposition: attachment; filename="' . $nombrePlantilla . '"');
+    header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    header('Content-Transfer-Encoding: binary');
+    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+    header('Expires: 0');
+    $phpTemplate->saveAs("php://output");
+  } elseif ($tipo == "pdf") {
+    $nombreDOCX = "certificado_" . (new DateTime())->format("Y-m-d-H-i-s") . ".docx";
+    $phpTemplate->saveAs($nombreDOCX);
+    $resp = convierteWordToPDF($nombreDOCX);
+    if (null == $resp["error"]) {
+      $pdfFilePath = $resp["salida"];
+      header('Content-Type: application/pdf');
+      header('Content-Disposition: attachment; filename="' . basename($pdfFilePath) . '"');
+      header('Content-Length: ' . filesize($pdfFilePath));
+      readfile($pdfFilePath);
+      unlink($pdfFilePath);
+      unlink($nombreDOCX);
+    }
+  }
+}
+function handleGetFirmas(array $getParams): void
+{
+  if (!isset($getParams["uuid"]) || !isset($getParams["mimeType"])) {
+    header('Content-Type: application/json; charset=utf-8');
+    print json_encode(getFirmas(RUTA_FIRMAS));
+  } else {
+    $respuesta = getArchivo($getParams["uuid"]);
+    header("Content-Type: " . $getParams["mimeType"]);
+    print $respuesta;
+  }
+}
+function handleGenerateReport(array $postData, string $tipo): void
+{
+  $nombreHoja = "ConsultaRUND";
+
+  // Distribuye las variables que entraron como $postData;
+  $dataCols = $postData["cols"];
+  $numTotalCols = count($dataCols);
+  $dataFilas = $postData["filas"];
+  $numTotalFilas = count($dataFilas);
+  $dataNomFil = $postData["nomFil"];
+  $dataNomCol = $postData["nomCol"];
+
+  // Carga una plantilla
+  $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load("docs/plantilla_reporte.xlsx");
+  $hoja = $spreadsheet->getActiveSheet();
+  $hoja->setTitle($nombreHoja);
+  $inicio = [1, 1]; // Se indica la posición inicial de la tabla. Depende de la plantilla.
+  // Calcula las posiciones de los elementos principales de la tabla.
+  $posIniCol = [$inicio[0] + 1, $inicio[1]];
+  $posFinCol = [($posIniCol[0] + $numTotalCols - 1), $posIniCol[1]];
+  $posIniLabel = [$inicio[0],  ($posFinCol[1] + 2)];
+  $posIniData = [$posIniLabel[0] + 1, $posIniLabel[1]];
+  // Crea la tabla de datos.
+  $posTablaDatos = creaTablaDatos($inicio, $hoja, $dataNomFil, $posIniCol, $posFinCol, $dataNomCol, $dataCols, $dataFilas);
+  // Obtiene las variables de posición final de los elementos.
+  $posNomCol = $posTablaDatos["posNomCol"];
+  $posLabel = $posTablaDatos["posLabel"];
+  $posData = $posTablaDatos["posData"];
+  // Le da estilo a la Tabla
+  $hoja->getStyle(arrayToCell($inicio) . ":" . arrayToCell($posNomCol))->getAlignment()
+    ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)
+    ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+  $hoja->getStyle(arrayToCell($inicio) . ":" . arrayToCell($posNomCol))->getFont()->setBold(true);
+  $hoja->getStyle(arrayToCell($inicio) . ":" . arrayToCell($posLabel))->getFont()->setBold(true);
+  $hoja->getStyle(arrayToCell($inicio) . ":" . arrayToCell($posData))->getBorders()->getAllBorders()
+    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+  autoFitCols($hoja);
+  // Crea las variables para crear el Gráfico.
+  $valores = [];
+  $etiquetas = [];
+  for ($i = 0; $i < $numTotalCols; $i++) {
+    $ini = [$posIniData[0] + $i, $posIniData[1]];
+    $fin = [$posIniData[0] + $i, $posIniData[1] + ($numTotalFilas - 1)];
+    $rangoVal = $nombreHoja . "!" . arrayToCell($ini, true, true) . ":" . arrayToCell($fin, true, true);
+    $valores[] = new \PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues("Number", $rangoVal, null, $numTotalFilas);
+    $posEti = [$posIniCol[0] + $i, $posIniCol[1] + 1];
+    $rangoEti = $nombreHoja . "!" . arrayToCell($posEti, true, true);
+    $etiquetas[] = new \PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues("String", $rangoEti, null, 1);
+  }
+  $rangoCat = $nombreHoja . "!" . arrayToCell($posIniLabel, true, true) . ":" . arrayToCell([$posIniLabel[0], $posIniLabel[1] + ($numTotalFilas - 1)], true, true);
+  $categorias = [new \PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues("String", $rangoCat, null, $numTotalFilas)];
+  $titulo = "Distribución por " . $dataNomCol . " según " . $dataNomFil;
+  $posIniGrafico = [$posIniLabel[0], $posFinCol[1] + $numTotalFilas + 4];
+  $posFinGrafico = [$posIniGrafico[0] + 9, $posIniGrafico[1] + 12];
+  $posGrafico = [arrayToCell($posIniGrafico), arrayToCell($posFinGrafico)];
+  creaGraficoBarras($valores, $categorias, $etiquetas, $titulo, $hoja, $posGrafico);
+  $spreadsheet->getActiveSheet()->getPageSetup()->setFitToWidth(1);
+  $spreadsheet->getActiveSheet()->getPageSetup()->setFitToHeight(0);
+  $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+  $writer->setIncludeCharts(true);
+  // El resto de la lógica de file.php para generar xlsx o pdf...
+}
+function handleDeleteReport(): array
+{
+  $aBorrar = ["reporte.xlsx", "reporte.pdf"];
+  $borrados = [];
+  foreach ($aBorrar as $archivo) {
+    if (file_exists(TEMP_DIR . $archivo)) {
+      unlink(TEMP_DIR . $archivo);
+      $borrados[] = $archivo;
+    }
+  }
+  return ["borrados" => $borrados, "aBorrar" => $aBorrar];
+}
+function handleLoadList(string $method, array $getParams, array $files): array
+{
+  $salida = [];
+  $accion = $getParams["accion"];
+  $propiedades = json_decode(html_entity_decode($getParams["propiedades"], ENT_QUOTES | ENT_HTML5, 'UTF-8'), true);
+  $nombreArchivo = extraeElemento($propiedades, "label", "Nombre")["valor"];
+  $tipo = textoAnombreCarpeta(extraeElemento($propiedades, "label", "Tipo")["valor"]);
+  $path = RUTA_LISTADOS . $tipo;
+  $query = "search/find?name=" . urlencode($nombreArchivo) . "&path=" . urlencode($path);
+
+  switch ($accion) {
+    case "cargar":
+      if ($method == 'POST' && isset($files['archivo'])) {
+        $dupe = extraeElemento($propiedades, "label", "Duplicado")["valor"];
+        $salida = cargaArchivo($files["archivo"], $propiedades, $path, $dupe);
+        if (!$dupe) {
+          $uuid = json_decode(consulta($query), true)["queryResult"]["node"]["uuid"];
+          $tipo = textoAnombreCarpeta(extraeElemento($propiedades, "label", "Tipo")["valor"]);
+          $origen = textoAnombreCarpeta(extraeElemento($propiedades, "label", "Origen")["valor"]);
+          $formato = textoAnombreCarpeta(extraeElemento($propiedades, "label", "Formato")["valor"]);
+          $categorias = [
+            ["path" => CTGR_LISTADOS . "TIPO/$tipo"],
+            ["path" => CTGR_LISTADOS . "ORIGEN/$origen"],
+            ["path" => CTGR_LISTADOS . "FORMATO/$formato"],
+          ];
+          $salida["creaCategorias"] = creaCategorias($categorias);
+          $postData = ["uuid" => $uuid, "categories" => $categorias];
+          $salida["respCategorias"] = consulta("document/setProperties", "PUT", $postData);
+        }
+      } else {
+        $salida["error"] = "Para la acción 'cargar' se requiere método POST y un archivo.";
+      }
+      break;
+    case "duplicado":
+      $respQuery = json_decode(consulta($query), true);
+      $duplicado = ["nombre" => false, "ruta" => false, "size" => false, "creado" => false, "uuid" => ""];
+      if ($respQuery && count($respQuery)) {
+        $duplicado["nombre"] = true;
+        $nodo = esArraySimple($respQuery["queryResult"]) ? $respQuery["queryResult"][0]["node"] : $respQuery["queryResult"]["node"];
+        if ($nodo["path"] == "$path/$nombreArchivo") $duplicado["ruta"] = true;
+        if ($nodo["actualVersion"]["size"] == extraeElemento($propiedades, "label", "Size")["valor"]) $duplicado["size"] = true;
+        $duplicado["creado"] = $nodo["created"];
+        $duplicado["uuid"] = $nodo["uuid"];
+      }
+      $salida["duplicado"] = $duplicado;
+      break;
+  }
+  return $salida;
+}
+function handlePostFile(array $getParams, array $files): array
+{
+  $salida = [];
+  $accion = $getParams["accion"];
+  $nombreArchivo = $files["archivo"]["name"];
+  $propiedades = json_decode(html_entity_decode($getParams["propiedades"], ENT_QUOTES | ENT_HTML5, 'UTF-8'), true);
+  array_push($propiedades, ["label" => "Nombre", "valor" => $nombreArchivo]);
+
+  switch ($accion) {
+    case "cargaFirma":
+      $path = RUTA_FIRMAS;
+      $dupe = yaExiste($nombreArchivo, $path);
+      $cargo = textoAnombreCarpeta(extraeElemento($propiedades, "label", "cargo")["valor"]);
+      $categorias = [
+        ["path" => CTGR_FIRMAS . "CARGO/$cargo"],
+        ["path" => CTGR_FIRMAS . "TIPO/RUND_FIRMA"],
+        ["path" => CTGR_FIRMAS . "TIPO/RUND_FIRMA_SIDE-CAR"],
+        ["path" => CTGR_FIRMAS . "FORMATO/PNG"],
+        ["path" => CTGR_FIRMAS . "FORMATO/CSV"],
+      ];
+      $salida["creaCategorias"] = creaCategorias($categorias);
+      $salida["cargaPNG"] = cargaArchivo($files["archivo"], $propiedades, $path, $dupe);
+      $queryPNG = "search/find?name=" . urlencode($nombreArchivo) . "&path=" . urlencode($path);
+      $uuidPNG = json_decode(consulta($queryPNG), true)["queryResult"]["node"]["uuid"];
+      $postDataPNG = ["uuid" => $uuidPNG, "categories" => [["path" => CTGR_FIRMAS . "CARGO/$cargo"], ["path" => CTGR_FIRMAS . "TIPO/RUND_FIRMA"], ["path" => CTGR_FIRMAS . "FORMATO/PNG"]]];
+      $salida["respCategoriasPNG"] = consulta("document/setProperties", "PUT", $postDataPNG);
+
+      $nombreJSON = preg_replace('/\.png$/i', ".json", $nombreArchivo);
+      $queryJSON = "search/find?name=" . urlencode($nombreJSON) . "&path=" . urlencode($path);
+      $respQueryJSON = json_decode(consulta($queryJSON), true);
+      $dupeJSON = $respQueryJSON && count($respQueryJSON);
+      $uuidJSON = $dupeJSON ? $respQueryJSON["queryResult"]["node"]["uuid"] : null;
+      $dataJSON = [
+        ["label" => "cargo", "valor" => extraeElemento($propiedades, "label", "cargo")["valor"]],
+        ["label" => "nombres", "valor" => extraeElemento($propiedades, "label", "nombres")["valor"]],
+        ["label" => "apellidos", "valor" => extraeElemento($propiedades, "label", "apellidos")["valor"]],
+        ["label" => "fecha", "valor" => extraeElemento($propiedades, "label", "fecha")["valor"]],
+        ["label" => "firma", "valor" => $nombreArchivo],
+      ];
+      $salida["cargaJSON"] = cargaJSON($dataJSON, $nombreJSON, $path, $uuidJSON);
+      $uuidJSON_actualizado = json_decode(consulta($queryJSON), true)["queryResult"]["node"]["uuid"];
+      $postDataJSON = ["uuid" => $uuidJSON_actualizado, "categories" => [["path" => CTGR_FIRMAS . "CARGO/$cargo"], ["path" => CTGR_FIRMAS . "TIPO/RUND_FIRMA_SIDE-CAR"], ["path" => CTGR_FIRMAS . "FORMATO/CSV"]]];
+      $salida["respCategoriasJSON"] = consulta("document/setProperties", "PUT", $postDataJSON);
+      break;
+  }
+  return $salida;
 }

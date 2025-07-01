@@ -1,2 +1,104 @@
 <?php
-echo "Hello, World! This is a simple PHP application running in a Docker container.";
+require_once("lib.inc.php");
+cors(); // Maneja las cabeceras CORS
+
+// --- 1. Definir la respuesta por defecto y las cabeceras ---
+$respuesta = null;
+
+// --- 2. Analizar la solicitud ---
+$method = $_SERVER['REQUEST_METHOD'];
+$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$path = trim(str_replace('/index.php', '', $uri), '/'); // Limpiamos la ruta
+$endpoint = explode('/', $path)[0]; // La primera parte de la ruta es nuestro endpoint
+
+// --- 3. Leer el cuerpo de la solicitud (para POST, PUT) ---
+$post_data = json_decode(file_get_contents("php://input"), true);
+
+// --- 4. Enrutador (Router) ---
+switch ($endpoint) {
+  case 'getCategorias':
+    if ($method == 'GET') {
+      $respuesta = handleGetCategorias();
+    }
+    break;
+
+  case 'getCruce':
+    if ($method == 'GET') {
+      $respuesta = handleGetCruce($_GET['x'], $_GET['y']);
+    }
+    break;
+
+  case 'getCsvData':
+    if ($method == 'GET') {
+      $respuesta = handleGetCsvData($_GET);
+    }
+    break;
+
+  case 'getCertificado':
+    if ($method == 'POST' && isset($_GET["tipo"]) && isset($_GET["plantilla"]) && $post_data) {
+      // Esta función manejará los headers y la salida del archivo, por lo que no necesita devolver nada.
+      handleGetCertificado($_GET, $post_data);
+      exit(); // La función manejadora se encarga de todo, salimos del script.
+    } else {
+      http_response_code(400);
+      $respuesta = json_encode(["error" => "Payload incompleto o método incorrecto."]);
+    }
+    break;
+
+  case 'getFirmas':
+    if ($method == 'GET') {
+      // Esta función puede devolver JSON o un archivo binario
+      handleGetFirmas($_GET);
+      exit(); // La función manejadora se encarga de todo.
+    }
+    break;
+
+  case 'deleteFile':
+    if ($method == 'DELETE' && isset($_GET['uuid'])) {
+      $respuesta = json_encode(["error" => null, "salida" => borraArchivo($_GET["uuid"])]);
+    } else {
+      http_response_code(400);
+      $respuesta = json_encode(["error" => "Se requiere método DELETE y parámetro 'uuid'"]);
+    }
+    break;
+
+  case 'fileDemografico':
+    if ($method == 'POST' && $post_data) {
+      // Esta función genera un archivo y maneja sus propios headers y salida.
+      handleGenerateReport($post_data, $_GET['tipo']);
+      exit();
+    }
+    break;
+
+  case 'delReporte':
+    if ($method == 'GET') {
+      // Esta función limpia archivos temporales y devuelve un JSON.
+      $respuesta = handleDeleteReport();
+    }
+    break;
+
+  case 'loadList':
+    if (isset($_GET['accion']) && isset($_GET['propiedades'])) {
+      $respuesta = handleLoadList($method, $_GET, $_FILES);
+    } else {
+      http_response_code(400);
+      $respuesta = ["error" => "Faltan los parámetros 'accion' y/o 'propiedades'"];
+    }
+    break;
+
+  case 'postFile':
+    if ($method == 'POST' && isset($_FILES['archivo']) && isset($_GET['accion'])) {
+      $respuesta = handlePostFile($_GET, $_FILES);
+    }
+    break;
+}
+
+// --- 5. Enviar la respuesta ---
+if ($respuesta !== null) {
+  header('Content-Type: application/json; charset=utf-8');
+  print json_encode($respuesta, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+} else {
+  http_response_code(404);
+  header('Content-Type: application/json; charset=utf-8');
+  print json_encode(["error" => "Endpoint no encontrado"], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+}
