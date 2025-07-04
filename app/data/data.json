@@ -1,4 +1,4 @@
 {
   "openKM": "http://localhost:8080/OpenKM/",
-  "libreofficePath": "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+  "libreofficePath": "/usr/lib/libreoffice/program/soffice"
 }

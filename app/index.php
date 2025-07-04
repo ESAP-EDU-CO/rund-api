@@ -62,10 +62,10 @@ switch ($endpoint) {
     }
     break;
 
-  case 'fileDemografico':
+  case 'getConsultaFile':
     if ($method == 'POST' && $post_data) {
       // Esta función genera un archivo y maneja sus propios headers y salida.
-      handleGenerateReport($post_data, $_GET['tipo']);
+      handleGetConsultaFile($post_data, $_GET['tipo']);
       exit();
     }
     break;

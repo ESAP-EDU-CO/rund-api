@@ -1,4 +1,5 @@
 <?php
+ini_set('display_errors', 1);
 error_reporting(E_ALL ^ (E_NOTICE | E_WARNING | E_DEPRECATED));
 date_default_timezone_set('America/Bogota');
 require_once __DIR__ . '/vendor/autoload.php';
@@ -15,13 +16,14 @@ use PhpOffice\PhpWord\Element\TextRun;
 // Lee la URL de la API externa (OpenKM) desde la variable de entorno 'EXTERNAL_API_URL'
 // para desacoplar la configuración del código. Esta variable se define en docker-compose.yml.
 // Si la variable de entorno no está definida, recurre al archivo data.json como respaldo.
+$dataInit = json_decode(file_get_contents(__DIR__ . "/data/data.json"), true);
 $base = getenv('EXTERNAL_API_URL');
 if ($base === false) {
-  $base = json_decode(file_get_contents(__DIR__ . "/data/data.json"), true)["openKM"];
+  $base = $dataInit["openKM"];
 }
 const USER = "okmAdmin";
 const PASSWORD = "admin";
-const REST = "services/rest/";
+const REST = "/services/rest/";
 $nomCats = json_decode(file_get_contents(__DIR__ . "/data/labels.json"), true);
 
 const TEMP_DIR = __DIR__ . "/tmp/";
@@ -198,9 +200,13 @@ function getUUIDHijos(string $padreUUID): array // Obtiene los uuid de los hijos
 function getID($obj): array // Obtiene el "label" (no nativo de OpenKM) y extrae el uuid de un objeto
 {
   global $nomCats;
-  return ["label" => $nomCats[array_pop(explode("/", $obj["path"]))], "uuid" => $obj["uuid"]];
+  $partes = explode("/", $obj["path"]);
+  $lastPart = array_pop($partes);
+  $label = $nomCats[$lastPart];
+  $uuid = $obj["uuid"];
+  return ["label" => $label, "uuid" => $uuid];
 }
-function getLabels($obj): array // Extrae el campo "label"  de un objeto QUE YA LO TIENE
+function getLabels($obj): string // Extrae el campo "label"  de un objeto QUE YA LO TIENE
 {
   return $obj["label"];
 }
@@ -536,7 +542,7 @@ function htmlToTextRun(string $texto): TextRun
   return $textRun;
 }
 // Usa LibreOffice
-function convierteExcelToPDF(string $excel = "reporte.xlsx", string $dir = "./"): array
+function convierteExcelToPDF(string $excel, string $dir): array
 {
   global $dataInit;
   $fileInfo = pathinfo($excel);
@@ -544,12 +550,12 @@ function convierteExcelToPDF(string $excel = "reporte.xlsx", string $dir = "./")
   $libreofficePath = $dataInit["libreofficePath"];
   $comando = escapeshellcmd(
     "$libreofficePath --headless  --convert-to pdf:calc_pdf_Export --outdir " .
-      escapeshellarg($dir) . " " . escapeshellarg($excel) . " 2>&1"
+      escapeshellarg($dir) . " " . escapeshellarg("$dir/$excel") . " 2>&1"
   );
   $salida = exec($comando, $output, $rtn);
   if (false === $salida || 0 !== $rtn) $err = implode("\n", $output);
-  if (file_exists("$nombreFile.pdf")) {
-    return ["error" => null, "salida" => "$nombreFile.pdf"];
+  if (file_exists("$dir/$nombreFile.pdf")) {
+    return ["error" => null, "salida" => "$dir/$nombreFile.pdf"];
   } else {
     return ["error" => $err, "salida" => $salida, "rtn" => $rtn];
   }
@@ -808,7 +814,7 @@ function handleGetFirmas(array $getParams): void
     print $respuesta;
   }
 }
-function handleGenerateReport(array $postData, string $tipo): void
+function handleGetConsultaFile(array $postData, string $tipo): void
 {
   $nombreHoja = "ConsultaRUND";
 
@@ -821,7 +827,7 @@ function handleGenerateReport(array $postData, string $tipo): void
   $dataNomCol = $postData["nomCol"];
 
   // Carga una plantilla
-  $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load("docs/plantilla_reporte.xlsx");
+  $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load(__DIR__ . "/docs/plantilla_reporte.xlsx");
   $hoja = $spreadsheet->getActiveSheet();
   $hoja->setTitle($nombreHoja);
   $inicio = [1, 1]; // Se indica la posición inicial de la tabla. Depende de la plantilla.
@@ -868,7 +874,29 @@ function handleGenerateReport(array $postData, string $tipo): void
   $spreadsheet->getActiveSheet()->getPageSetup()->setFitToHeight(0);
   $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
   $writer->setIncludeCharts(true);
-  // El resto de la lógica de file.php para generar xlsx o pdf...
+  switch ($tipo) {
+    case "xlsx": // Si la salida es un Excel
+      header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      header('Content-Disposition: attachment;filename="reporte.xls"');
+      header('Cache-Control: max-age=0');
+      $writer->save('php://output'); // Se envía directamente al cliente como Blob
+      exit;
+      break;
+    case "pdf": // Si la salida es un PDF
+      $writer->save(TEMP_DIR . "reporte.xlsx");
+      $resp = convierteExcelToPDF("reporte.xlsx", TEMP_DIR);
+      if ($resp["error"] == null) {
+        $pdfFilePath = $resp["salida"];
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . basename($pdfFilePath) . '"');
+        header('Content-Length: ' . filesize($pdfFilePath));
+        readfile($pdfFilePath);
+        exit;
+      } else {
+        print(json_encode($resp));
+      }
+      break;
+  }
 }
 function handleDeleteReport(): array
 {
