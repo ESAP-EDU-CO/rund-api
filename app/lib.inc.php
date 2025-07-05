@@ -910,11 +910,11 @@ function handleDeleteReport(): array
   }
   return ["borrados" => $borrados, "aBorrar" => $aBorrar];
 }
-function handleLoadList(string $method, array $getParams, array $files): array
+function handleLoadList(string $method, array $params, array $files): array
 {
   $salida = [];
-  $accion = $getParams["accion"];
-  $propiedades = json_decode(html_entity_decode($getParams["propiedades"], ENT_QUOTES | ENT_HTML5, 'UTF-8'), true);
+  $accion = $params["accion"];
+  $propiedades = json_decode(html_entity_decode($params["propiedades"], ENT_QUOTES | ENT_HTML5, 'UTF-8'), true);
   $nombreArchivo = extraeElemento($propiedades, "label", "Nombre")["valor"];
   $tipo = textoAnombreCarpeta(extraeElemento($propiedades, "label", "Tipo")["valor"]);
   $path = RUTA_LISTADOS . $tipo;

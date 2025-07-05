@@ -12,7 +12,7 @@ $path = trim(str_replace('/index.php', '', $uri), '/'); // Limpiamos la ruta
 $endpoint = explode('/', $path)[0]; // La primera parte de la ruta es nuestro endpoint
 
 // --- 3. Leer el cuerpo de la solicitud (para POST, PUT) ---
-$post_data = json_decode(file_get_contents("php://input"), true);
+$post_data = isset($_POST) ? $_POST : json_decode(file_get_contents("php://input"), true);
 
 // --- 4. Enrutador (Router) ---
 switch ($endpoint) {
@@ -65,7 +65,7 @@ switch ($endpoint) {
   case 'getConsultaFile':
     if ($method == 'POST' && $post_data) {
       // Esta función genera un archivo y maneja sus propios headers y salida.
-      handleGetConsultaFile($post_data, $_GET['tipo']);
+      handleGetConsultaFile(json_decode($post_data['data'], true), $post_data['tipo']);
       exit();
     }
     break;
@@ -78,8 +78,10 @@ switch ($endpoint) {
     break;
 
   case 'loadList':
-    if (isset($_GET['accion']) && isset($_GET['propiedades'])) {
+    if ($method == 'GET' && isset($_GET['accion']) && isset($_GET['propiedades'])) {
       $respuesta = handleLoadList($method, $_GET, $_FILES);
+    } elseif ($method == 'POST' && isset($post_data['accion']) && isset($post_data['propiedades'])) {
+      $respuesta = handleLoadList($method, $post_data, $_FILES);
     } else {
       http_response_code(400);
       $respuesta = ["error" => "Faltan los parámetros 'accion' y/o 'propiedades'"];

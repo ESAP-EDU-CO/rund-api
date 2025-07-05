@@ -63,18 +63,26 @@ COPY docker/fpm-pool.conf /usr/local/etc/php-fpm.d/www.conf
 COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Create necessary directories
+# Create necessary directories including Nginx temp directories
 RUN mkdir -p /var/www/html/logs \
   && mkdir -p /var/www/html/tmp \
+  && mkdir -p /var/www/html/tmp/nginx \
   && mkdir -p /var/log/supervisor \
   && mkdir -p /run/nginx \
-  && mkdir -p /run/php
+  && mkdir -p /run/php \
+  && mkdir -p /tmp/nginx_client_body \
+  && mkdir -p /tmp/nginx_proxy \
+  && mkdir -p /tmp/nginx_fastcgi \
+  && mkdir -p /tmp/nginx_uwsgi \
+  && mkdir -p /tmp/nginx_scgi
 
 # Set proper permissions
 RUN chown -R www-data:www-data /var/www/html \
   && chown -R www-data:www-data /var/log/supervisor \
   && chown -R www-data:www-data /run/nginx \
-  && chown -R www-data:www-data /run/php
+  && chown -R www-data:www-data /run/php \
+  && chown -R www-data:www-data /tmp/nginx_* \
+  && chmod -R 777 /tmp/nginx_*
 
 # Don't switch to non-root user - supervisor needs root privileges
 # USER www-data
