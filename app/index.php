@@ -35,13 +35,13 @@ switch ($endpoint) {
     break;
 
   case 'getCertificado':
-    if ($method == 'POST' && isset($_GET["tipo"]) && isset($_GET["plantilla"]) && $post_data) {
+    if ($method == 'POST' && $post_data) {
       // Esta función manejará los headers y la salida del archivo, por lo que no necesita devolver nada.
-      handleGetCertificado($_GET, $post_data);
+      handleGetCertificado($post_data);
       exit(); // La función manejadora se encarga de todo, salimos del script.
     } else {
       http_response_code(400);
-      $respuesta = json_encode(["error" => "Payload incompleto o método incorrecto."]);
+      $respuesta = json_encode(["error" => "Payload incompleto o método incorrecto.", "postData" => $post_data, "POST" => $_POST]);
     }
     break;
 

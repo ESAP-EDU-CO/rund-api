@@ -772,11 +772,11 @@ function handleGetCsvData(array $params): array
   }
   return ["error" => "No se encontró el CSV solicitado"];
 }
-function handleGetCertificado(array $getParams, array $postData): void
+function handleGetCertificado(array $postData): void
 {
-  $estructura = $postData;
-  $plantilla = $getParams["plantilla"];
-  $tipo = $getParams["tipo"];
+  $estructura = json_decode($postData["data"], true);
+  $plantilla = $postData["plantilla"];
+  $tipo = $postData["tipo"];
   $nombrePlantilla = "$plantilla.docx";
   $phpTemplate = creaCertificado(RUTA_CERTIFICADOS, $nombrePlantilla, $estructura);
 
