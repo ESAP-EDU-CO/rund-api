@@ -31,6 +31,15 @@ RUN apk update && apk add --no-cache \
   # Clean up
   && rm -rf /var/cache/apk/*
 
+# Instalar fuentes TrueType de Microsoft (Arial, Times New Roman, etc.)
+RUN apk add --no-cache fontconfig ttf-dejavu cabextract wget && \
+  mkdir -p /usr/share/fonts/truetype/msttcorefonts && \
+  cd /usr/share/fonts/truetype/msttcorefonts && \
+  wget https://downloads.sourceforge.net/corefonts/arial32.exe && \
+  cabextract arial32.exe && \
+  rm arial32.exe && \
+  fc-cache -f -v
+
 # Configure and install only the PHP extensions that need compilation
 # Note: xml, dom, xmlreader, xmlwriter, simplexml, fileinfo, mbstring are already built-in
 RUN docker-php-ext-configure gd \
