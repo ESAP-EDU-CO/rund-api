@@ -959,12 +959,12 @@ function handleLoadList(string $method, array $params, array $files): array
   }
   return $salida;
 }
-function handlePostFile(array $getParams, array $files): array
+function handlePostFile(array $params, array $files): array
 {
   $salida = [];
-  $accion = $getParams["accion"];
+  $accion = $params["accion"];
   $nombreArchivo = $files["archivo"]["name"];
-  $propiedades = json_decode(html_entity_decode($getParams["propiedades"], ENT_QUOTES | ENT_HTML5, 'UTF-8'), true);
+  $propiedades = json_decode(html_entity_decode($params["propiedades"], ENT_QUOTES | ENT_HTML5, 'UTF-8'), true);
   array_push($propiedades, ["label" => "Nombre", "valor" => $nombreArchivo]);
 
   switch ($accion) {

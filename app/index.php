@@ -89,8 +89,8 @@ switch ($endpoint) {
     break;
 
   case 'postFile':
-    if ($method == 'POST' && isset($_FILES['archivo']) && isset($_GET['accion'])) {
-      $respuesta = handlePostFile($_GET, $_FILES);
+    if ($method == 'POST' && isset($_FILES['archivo']) && isset($post_data['accion'])) {
+      $respuesta = handlePostFile($post_data, $_FILES);
     }
     break;
 }
