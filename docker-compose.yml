@@ -10,7 +10,7 @@ services:
       - "8080:8080"
     volumes:
       # Persiste todos los datos de OpenKM (repositorio, base de datos, logs)
-      - openkm-data:/usr/local/tomcat/
+      - openkm-data:/opt/tomcat
     networks:
       - rund-network
     environment:

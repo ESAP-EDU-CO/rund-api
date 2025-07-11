@@ -12,3 +12,7 @@ app/exports/*
 !app/temp/.gitkeep
 !app/uploads/.gitkeep
 !app/exports/.gitkeep
+*.tar.gz
+*.zip
+*.tar
+*.gz
