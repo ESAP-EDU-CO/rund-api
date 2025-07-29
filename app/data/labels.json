@@ -1,5 +1,23 @@
 {
   "DOCENTES": "Docentes",
+  "VINCULACION_Y_CATEGORIA": "Vinculación y categoría",
+  "VINCULACION": "Vinculación",
+  "CATEGORIA": "Categoría",
+  "TITULAR": "Titular",
+  "ASISTENTE": "Asistente",
+  "ASOCIADO": "Asociado",
+  "AUXILIAR": "Auxiliar",
+  "SIN_CATEGORIA": "Sin categoría",
+  "CARRERA_1": "Carrera 1",
+  "CARRERA_2": "Carrera 2",
+  "CATEDRA": "Cátedra",
+  "ESPECIAL": "Especial",
+  "NO_VINCULADO": "No vinculado",
+  "NOVEDAD_ADMINISTRATIVA": "Novedad administrativa",
+  "OCASIONAL": "Ocasional",
+  "PERIODO_DE_PRUEBA": "Periodo de prueba",
+  "PROSPECTO": "Prospecto",
+  "INACTIVO": "Inactivo",
   "PERFIL_DOCENTE": "Perfil docente",
   "GENERO": "Género",
   "GRUPO_ETNICO": "Grupo étnico",
@@ -51,5 +69,6 @@
   "LISTADO_DE_DOCENTES": "Listado de docentes",
   "ONEDRIVE_ESAP": "OneDrive ESAP",
   "RUND_SIDE-CAR": "RUND Side-car",
-  "CSV": "CSV"
+  "CSV": "CSV",
+  "HOJAS_DE_VIDA": "Hojas de vida"
 }
