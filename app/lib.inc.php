@@ -28,6 +28,22 @@ $nomCats = json_decode(file_get_contents(__DIR__ . "/data/labels.json"), true);
 
 const TEMP_DIR = __DIR__ . "/tmp/";
 
+// Constantes de rutas y categorías en OpenKM
+const ROOT_TAX = "/okm:root/RUND/";
+const ROOT_CTG = "/okm:categories/RUND/";
+const ROOT_TAX_DOCS = ROOT_TAX . "DOCUMENTOS/";
+const ROOT_CTG_DOCS = ROOT_CTG . "DOCUMENTOS/";
+const ROOT_TAX_PROF = ROOT_TAX . "DOCENTES/";
+const ROOT_CTG_PROF = ROOT_CTG . "DOCENTES/";
+const RUTA_PLANTILLAS = "plantillas/";
+const RUTA_CERTIFICADOS = RUTA_PLANTILLAS . "certificados/";
+const RUTA_FIRMAS = ROOT_TAX_DOCS . "FIRMAS/";
+const RUTA_LISTADOS = ROOT_TAX_DOCS . "LISTADOS/";
+const CTGR_LISTADOS = ROOT_CTG_DOCS . "LISTADOS/";
+const CTGR_FIRMAS = ROOT_CTG_DOCS . "FIRMAS/";
+const RUTA_HOJAS = ROOT_TAX_PROF . "HOJAS_DE_VIDA/";
+const CTGR_DOCS_HOJAS = ROOT_CTG_DOCS . "HOJAS_DE_VIDA/";
+
 // ---------- Funciones API OpenKM
 /**
  * creaCarpetas
@@ -38,33 +54,27 @@ const TEMP_DIR = __DIR__ . "/tmp/";
  */
 function creaCarpetas(array $rutas, string $prefijo): array
 {
-  $headers = [
-    "Accept: application/json",
-    "Content-Type: application/json"
-  ];
   $respuesta = [];
   foreach ($rutas as $ruta) {
     $ruta = str_replace($prefijo, "", $ruta); // Elimina el prefijo de la ruta, si existe
     $path = explode("/", $ruta);
-    $path = array_filter($path, fn($part) => !empty($part)); // Elimina partes vacías
-    $ruta = $prefijo;
-    foreach ($path as $part) {
-      $ruta .= $part . "/";
-      $resp = consulta("repository/getNodeUuid?nodePath=" . urlencode($ruta)); // Consulta si la ruta ya existe
-      if (strpos($resp, "PathNotFoundException") !== false) { // Crea la carpeta si no existe
-        $rutaSinBarra = rtrim($ruta, '/');
-        array_push($headers, "Content-Length: " . strlen($rutaSinBarra));
+    $ruta = rtrim($prefijo, '/');
+    foreach ($path as $part) { // Recorre cada parte de la ruta
+      $ruta .= "/" . $part;
+      $respGetNodeUuid = consulta("repository/getNodeUuid?nodePath=" . urlencode($ruta)); // Consulta si la ruta ya existe
+      if (strpos($respGetNodeUuid, "PathNotFoundException") !== false) { // La carpeta no existe, se debe crear
+        $respCreateSimple = consulta("folder/createSimple", "POST", $ruta);
         $respuesta[] = [
-          "getNodeUuid" => $resp,
+          "getNodeUuid" => $respGetNodeUuid,
           "ruta" => $ruta,
           "accion" => "folder/createSimple",
-          "consulta" => consulta("folder/createSimple", "POST", $rutaSinBarra, $headers),
+          "consulta" => $respCreateSimple,
         ];
       } else { // La carpeta ya existe
         $respuesta[] = [
-          "getNodeUuid" => $resp,
+          "getNodeUuid" => "La carpeta ya existe: $respGetNodeUuid",
           "ruta" => $ruta,
-          "accion" => "Carpeta ya existe",
+          "accion" => null,
           "consulta" => null,
         ];
       }
@@ -182,40 +192,44 @@ function consulta(string $consulta, string $tipo = "GET", array|string|null $pos
 // Hace llamadas a la API de OpenKM, GET por defecto
 {
   global $base;
+  $path = $base . REST . $consulta;
   if (!arrayMatch($headers, "Accept:")) array_push($headers, "Accept: application/json");
+  if (!arrayMatch($headers, "Content-Type:")) array_push($headers, "Content-Type: application/json");
+  $postData = (is_array($postData)) ? json_encode($postData) : $postData;
   $curl = curl_init();
-  curl_setopt($curl, CURLOPT_URL, $base . REST . $consulta);
+  curl_setopt($curl, CURLOPT_URL, $path);
+  curl_setopt($curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC); // Forzar auth básica
   curl_setopt($curl, CURLOPT_USERNAME, USER);
   curl_setopt($curl, CURLOPT_PASSWORD, PASSWORD);
   curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($curl, CURLOPT_FRESH_CONNECT, true);
+  curl_setopt($curl, CURLOPT_FORBID_REUSE, true);
+  curl_setopt($curl, CURLOPT_TIMEOUT, 30);
+  curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
+  curl_setopt($curl, CURLOPT_COOKIEJAR, ''); // Evitar cookies
   switch ($tipo) { // Determina el tipo de consulta
     case "GET":
       curl_setopt($curl, CURLOPT_HTTPGET, true);
-      array_push($headers, "Content-Type: application/json");
       break;
     case "POST":
       if (!$postData) throw new Error("Se solicita una consulta POST pero no se proporciona postData");
       curl_setopt($curl, CURLOPT_POST, true);
       curl_setopt($curl, CURLOPT_POSTFIELDS, $postData);
+      array_push($headers, "Content-Length: " . strlen($postData));
       break;
     case "PUT":
       if (!$postData) throw new Error("Se solicita una consulta PUT pero no se proporciona postData");
-      $postData = (is_array($postData)) ? json_encode($postData) : $postData;
       curl_setopt($curl, CURLOPT_CUSTOMREQUEST, 'PUT');
       curl_setopt($curl, CURLOPT_POSTFIELDS, $postData);
-      array_push($headers, "Content-Type: application/json");
       array_push($headers, "Content-Length: " . strlen($postData));
       break;
     case "DELETE":
       curl_setopt($curl, CURLOPT_CUSTOMREQUEST, 'DELETE');
-      array_push($headers, "Content-Type: application/json");
       break;
   }
   curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
   $resp = curl_exec($curl);
-  if (curl_errno($curl)) {
-    $resp = curl_error($curl);
-  }
+  if (curl_errno($curl)) $resp = curl_error($curl);
   curl_close($curl);
   return $resp;
 }
@@ -275,7 +289,7 @@ function getLabels($obj): string // Extrae el campo "label"  de un objeto QUE YA
  * - 'respuesta': Respuesta de la API de OpenKM después de intentar crear o actualizar el documento
  * - 'folderResp': Respuesta de la API al intentar crear la carpeta si no existe (opcional)
  * * Esta función maneja la carga de archivos a OpenKM, incluyendo la creación de nuevas versiones si es necesario.
-*/
+ */
 function cargaArchivo(array $archivo, array $propiedades, string $path, bool | null $version = null): array
 {
   $salida = ["error" => $archivo["error"]];
@@ -286,6 +300,7 @@ function cargaArchivo(array $archivo, array $propiedades, string $path, bool | n
     $fileData = new CURLFile($temp, $type, $nombre);
     $rutaDestino = $path . "/" . $nombre; // Ruta completa del archivo en OpenKM
     $query = "search/find?name=" . urlencode($nombre) . "&path=" . urlencode($path); // Cadena de búsqueda a partir del nombre y ruta
+    // Si ya existe el uuid, se extrae de $propiedades, de lo contrario se consulta a OpenKM
     $uuid = extraeElemento($propiedades, "label", "Uuid") ?
       extraeElemento($propiedades, "label", "Uuid")["valor"] :
       json_decode(consulta($query), true)["queryResult"]["node"]["uuid"];
@@ -297,31 +312,43 @@ function cargaArchivo(array $archivo, array $propiedades, string $path, bool | n
     $comentarioNV = extraeElemento($propiedades, "label", "Comentario") ?
       extraeElemento($propiedades, "label", "Comentario")["valor"] :
       "Modificado " . date("Y-m-d H:i:s");
+    // Se crean las carpetas (si no existen) donde se ubicará el archivo
+    $folderResp = creaCarpetas([$path], ROOT_TAX); // Crea la ruta del archivo si no existe
     // Si es nueva versión, llama a nuevaVersion(), de lo contrario, hace un createSimple directo.
     $resp = $version ?
       nuevaVersion($uuid, $comentarioNV, $postData) :
-      consulta("document/createSimple", "POST", $postData);
-    if (str_contains($resp, "PathNotFoundException")) {
-      // No existe el directorio $carpetaDestino dentro de la ruta RUND/LISTADOS; se debe crear
-      $headers = ["Content-Type: application/json"];
-      // Se crea el directorio y se envía como postData la cadena directamente, sin json_encode
-      $folderResp = consulta("folder/createSimple", "POST", $path, $headers);
-      // Se intenta crear el documento, de nuevo
-      $resp = consulta("document/createSimple", "POST", $postData);
-    }
+      documentCreateSimple($postData); // Versión mínima de carga de archivos a OpenKM
     $salida = verificaCarga($resp, $salida, $folderResp);
   }
   return $salida;
 }
-function verificaCarga(string $resp, array $salida, string | null $folderResp = null): array
+function documentCreateSimple(array $postData): string
 {
-  if (substr($resp, 0, 1) == '{') {
+  global $base;
+  $path = $base . REST . "document/createSimple";
+  $curl = curl_init();
+  curl_setopt($curl, CURLOPT_URL, $path);
+  curl_setopt($curl, CURLOPT_USERNAME, USER);
+  curl_setopt($curl, CURLOPT_PASSWORD, PASSWORD);
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($curl, CURLOPT_TIMEOUT, 30);
+  curl_setopt($curl, CURLOPT_POST, true);
+  curl_setopt($curl, CURLOPT_POSTFIELDS, $postData);
+  curl_setopt($curl, CURLOPT_HTTPHEADER, ["Accept: application/json"]);
+  $resp = curl_exec($curl);
+  curl_close($curl);
+  return $resp;
+}
+function verificaCarga(string $resp, array $salida, array | string | null $folderResp = null): array
+{
+  if (substr($resp, 0, 1) == '{' || substr($resp, 0, 1) == '[' || substr($resp, 0, 1) == "1") { // Verifica si la respuesta es JSON
     $salida["respuesta"] = json_decode($resp, true);
     $salida["error"] = false;
   } else {
+    $salida["respuesta"] = $resp;
     $salida["error"] = "No se pudo crear el documento";
-    if (isset($folderResp)) $salida["folderResp"] = $folderResp;
   }
+  if ($folderResp) $salida["folderResp"] = $folderResp;
   return $salida;
 }
 function nuevaVersion(string $uuid, string $comentario, array $postData): string
@@ -331,7 +358,7 @@ function nuevaVersion(string $uuid, string $comentario, array $postData): string
   $postData["comment"] = $comentario;
   $postData["docId"] = $uuid;
   // Verifica que se haya podido hacer checkout
-  $respCheckOut = json_decode(consulta("document/isCheckedOut?docId=$uuid", "GET", null, ["accept: text/plain"]), true);
+  $respCheckOut = json_decode(consulta("document/isCheckedOut?docId=$uuid", "GET", null, ["Accept: text/plain"]), true);
   // Si se pudo hacer checkout, se hace checkin, de lo contrario se devuelve el error
   return $respCheckOut ?
     consulta("document/checkin", "POST", $postData) :
@@ -350,7 +377,7 @@ function cargaJSON(array $dataJSON, string $nombreJSON, string $path, string | n
   // Si es duplicado hace checkout/checkin o, sino, simplemente createSimple
   $resp = $uuid ?
     nuevaVersion($uuid, "Modificado " . date("Y-m-d H:i:s"), $postData) :
-    consulta("document/createSimple", "POST", $postData);
+    documentCreateSimple($postData);
   $salida = verificaCarga($resp, $salida);
   return $salida;
 }
@@ -730,21 +757,6 @@ function csvToJsonByColumns($csvArray)
 
 // --- Handlers para el enrutador ---
 
-const ROOT_TAX = "/okm:root/RUND/";
-const ROOT_CTG = "/okm:categories/RUND/";
-const ROOT_TAX_DOCS = ROOT_TAX . "DOCUMENTOS/";
-const ROOT_CTG_DOCS = ROOT_CTG . "DOCUMENTOS/";
-const ROOT_TAX_PROF = ROOT_TAX . "DOCENTES/";
-const ROOT_CTG_PROF = ROOT_CTG . "DOCENTES/";
-const RUTA_PLANTILLAS = "plantillas/";
-const RUTA_CERTIFICADOS = RUTA_PLANTILLAS . "certificados/";
-const RUTA_FIRMAS = ROOT_TAX_DOCS . "FIRMAS/";
-const RUTA_LISTADOS = ROOT_TAX_DOCS . "LISTADOS/";
-const CTGR_LISTADOS = ROOT_CTG_DOCS . "LISTADOS/";
-const CTGR_FIRMAS = ROOT_CTG_DOCS . "FIRMAS/";
-const RUTA_HOJAS = ROOT_TAX_PROF . "HOJAS_DE_VIDA/";
-const CTGR_DOCS_HOJAS = ROOT_CTG_DOCS . "HOJAS_DE_VIDA/";
-
 function handleGetCategorias(): array // Devuelve un árbol de categorias (no Taxonomía) desde la categoría principal
 {
   global $base;
@@ -807,8 +819,7 @@ function handleGetCsvData(array $params): array
     if ($nodo["path"] == "$path/$nombreArchivo") {
       $headers = ["Accept: application/octet-stream"];
       $uuid = $nodo["uuid"];
-      $consulta = "document/getContent?docId=$uuid";
-      $csvContent = consulta($consulta, "GET", null, $headers);
+      $csvContent = consulta("document/getContent?docId=$uuid", "GET", null, $headers);
       $regex = '/([^\\"]|)(\\n)+([^\\"])/m';
       $doble = '/  /m';
       $csvContent = preg_replace($regex, "$1 $3", $csvContent);
@@ -1074,7 +1085,7 @@ function handlePostFile(array $params, array $files): array
        * - categorias: Array de categorías a las que pertenece el documento, siempre y cuando sea Cédula, de resto no es obligatoria
        * - esCedula: Booleano que indica si el documento es una cédula o no
        * - cedula: El valor string de la cédula del profesor, que será la carpeta raíz donde se almacenará el documento
-      */
+       */
       $cedula = extraeElemento($propiedades, "label", "cedula")["valor"]; // Cédula del profesor, que será la carpeta raíz donde se almacenará el documento
       if (!preg_match('/^\d{4,20}$/', $cedula)) { // Verifica que la cédula sea válida
         $salida["error"] = "La cédula debe tener entre 4 y 20 dígitos.";
@@ -1090,21 +1101,22 @@ function handlePostFile(array $params, array $files): array
       $origenDocumento = extraeElemento($propiedades, "label", "origen")["valor"]; // Extrae el origen del documento (OneDrive, etc.)
       $categorias = [];
       $rutasCategorias = [];
-      if ($esCedula){ // Genera las categorías a las que pertenece el documento si es la cédula
+      if ($esCedula) { // Genera las categorías a las que pertenece el documento si es la cédula
         $cats = extraeElemento($propiedades, "label", "categorias")["valor"];
-        foreach($cats as $cat) $rutasCategorias[] = ROOT_CTG_PROF . $cat; // Guarda las rutas de las categorías
+        foreach ($cats as $cat) $rutasCategorias[] = ROOT_CTG_PROF . $cat; // Guarda las rutas de las categorías
       }
       $rutasCategorias[] = CTGR_DOCS_HOJAS . "TIPO/" . textoAnombreCarpeta($tipoDocumento); // Añade la categoría del tipo de documento
       $rutasCategorias[] = CTGR_DOCS_HOJAS . "FORMATO/" . textoAnombreCarpeta($formatoDocumento); // Añade la categoría del formato del documento
-      $rutasCategorias[] = CTGR_DOCS_HOJAS . "ORIGEN/" .textoAnombreCarpeta($origenDocumento); // Añade la categoría del origen del documento
+      $rutasCategorias[] = CTGR_DOCS_HOJAS . "ORIGEN/" . textoAnombreCarpeta($origenDocumento); // Añade la categoría del origen del documento
       foreach ($rutasCategorias as $rutaCategoria) $categorias[] = ["path" => $rutaCategoria]; // Genera el array de categorías a las que pertenece el documento
+      $salida = [];
       $salida["creaTaxonomia"] = creaCarpetas([$cedula . $ruta], RUTA_HOJAS); // Crea las carpetas de forma recursiva de la taxonomía en OpenKM, si no existe
       $salida["creaCategorias"] = creaCarpetas($rutasCategorias, ROOT_CTG); // Crea las categorías en OpenKM si no existen
       $salida["carga"] = cargaArchivo($files["archivo"], $propiedades, $path, $dupe); // Carga el archivo en OpenKM
       $query = "search/find?name=" . urlencode($nombreArchivo) . "&path=" . urlencode($path); // Genera la query para buscar el UUID del archivo cargado
       $uuid = json_decode(consulta($query), true)["queryResult"]["node"]["uuid"]; // Extrae el UUID del archivo cargado
       $postData = ["uuid" => $uuid, "categories" => $categorias]; // Genera el array de datos para actualizar las propiedades del documento
-      $salida["respCategorias"] = consulta("document/setProperties", "PUT", $postData); // Actualiza las propiedades del documento en OpenKM
+      $salida["setProperties"] = consulta("document/setProperties", "PUT", $postData); // Actualiza las propiedades del documento en OpenKM
       break;
   }
   return $salida;
