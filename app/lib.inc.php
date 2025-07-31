@@ -202,6 +202,7 @@ function consulta(string $consulta, string $tipo = "GET", array|string|null $pos
   curl_setopt($curl, CURLOPT_USERNAME, USER);
   curl_setopt($curl, CURLOPT_PASSWORD, PASSWORD);
   curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+
   curl_setopt($curl, CURLOPT_FRESH_CONNECT, true);
   curl_setopt($curl, CURLOPT_FORBID_REUSE, true);
   curl_setopt($curl, CURLOPT_TIMEOUT, 30);
@@ -317,15 +318,15 @@ function cargaArchivo(array $archivo, array $propiedades, string $path, bool | n
     // Si es nueva versión, llama a nuevaVersion(), de lo contrario, hace un createSimple directo.
     $resp = $version ?
       nuevaVersion($uuid, $comentarioNV, $postData) :
-      documentCreateSimple($postData); // Versión mínima de carga de archivos a OpenKM
+      documentAction("createSimple", $postData); // Versión mínima de carga de archivos a OpenKM
     $salida = verificaCarga($resp, $salida, $folderResp);
   }
   return $salida;
 }
-function documentCreateSimple(array $postData): string
+function documentAction(string $action, array $postData): string
 {
   global $base;
-  $path = $base . REST . "document/createSimple";
+  $path = $base . REST . "document/$action";
   $curl = curl_init();
   curl_setopt($curl, CURLOPT_URL, $path);
   curl_setopt($curl, CURLOPT_USERNAME, USER);
@@ -354,15 +355,17 @@ function verificaCarga(string $resp, array $salida, array | string | null $folde
 function nuevaVersion(string $uuid, string $comentario, array $postData): string
 // Hace un checkout / checkin cuando el documento está duplicado y se quiere crear una nueva versión del mismo
 {
-  consulta("document/checkout?docId=$uuid");
+  consulta("document/checkout?docId=$uuid"); // Hace checkout del documento, es decir, lo marca como en uso para ser reemplazado
   $postData["comment"] = $comentario;
   $postData["docId"] = $uuid;
   // Verifica que se haya podido hacer checkout
   $respCheckOut = json_decode(consulta("document/isCheckedOut?docId=$uuid", "GET", null, ["Accept: text/plain"]), true);
   // Si se pudo hacer checkout, se hace checkin, de lo contrario se devuelve el error
-  return $respCheckOut ?
-    consulta("document/checkin", "POST", $postData) :
+  $salida = $respCheckOut ?
+    //consulta("document/checkin", "POST", $postData) :
+    documentAction("checkin", $postData) :
     json_encode(["error" => "No se pudo hacer checkout.", "respCheckOut" => $respCheckOut, "consulta" => "document/isCheckedOut?docId=$uuid"]);
+  return $salida;
 }
 function cargaJSON(array $dataJSON, string $nombreJSON, string $path, string | null $uuid = null): array
 // Genera un JSON a partir de un array asociativo y lo carga en la $path específica
@@ -377,7 +380,7 @@ function cargaJSON(array $dataJSON, string $nombreJSON, string $path, string | n
   // Si es duplicado hace checkout/checkin o, sino, simplemente createSimple
   $resp = $uuid ?
     nuevaVersion($uuid, "Modificado " . date("Y-m-d H:i:s"), $postData) :
-    documentCreateSimple($postData);
+    documentAction("createSimple", $postData);
   $salida = verificaCarga($resp, $salida);
   return $salida;
 }
