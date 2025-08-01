@@ -1,6 +1,10 @@
 # Use official PHP 8.3 FPM Alpine image (latest stable)
 FROM php:8.3-fpm-alpine3.19
 
+# Información del mantenedor
+LABEL maintainer="oliver.castelblanco@esap.edu.co"
+LABEL description="RUND API (PHP 8.3 FPM)"
+
 # Set working directory
 WORKDIR /var/www/html
 
