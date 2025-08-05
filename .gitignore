@@ -16,3 +16,6 @@ app/exports/*
 *.zip
 *.tar
 *.gz
+
+# Docker
+.dockerignore
