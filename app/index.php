@@ -93,6 +93,24 @@ switch ($endpoint) {
       $respuesta = handlePostFile($post_data, $_FILES);
     }
     break;
+  case 'extraeDatos':
+    if ($method == 'POST' && isset($_FILES['archivo']) && isset($post_data)) {
+      $respuesta = handleExtraeDatos($post_data, $_FILES);
+    }
+    break;
+  case 'getFile':
+    if ($method == "GET" && isset($_GET['tipo']) && isset($_GET['nombre'])) {
+      $respuesta = handleGetFile($_GET["tipo"], $_GET["nombre"]);
+      if ($respuesta === null) exit();
+    } else {
+      http_response_code(400);
+      $respuesta = ["error" => "Falta el parámetro 'tipo' y/o 'nombre'"];
+    }
+    break;
+  case 'info':
+    if ($method == "GET") {
+      $respuesta = handleInfo();
+    }
 }
 
 // --- 5. Enviar la respuesta ---

@@ -93,6 +93,25 @@ send_notification() {
   # curl -X POST -H 'Content-type: application/json' --data '{"text":"'"$message"'"}' YOUR_SLACK_WEBHOOK_URL
 }
 
+# Función para mostrar información final
+show_final_info() {
+  local final_size
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    final_size=$(stat -f %z "$BACKUP_FILE")
+  else
+    final_size=$(stat -c%s "$BACKUP_FILE")
+  fi
+  FINAL_SIZE_MB=$((final_size / 1024 / 1024))
+
+  log_message "INFO" "==================== BACKUP COMPLETADO ===================="
+  log_message "INFO" "Archivo: $BACKUP_FILE"
+  log_message "INFO" "Tamaño final: ${FINAL_SIZE_MB}MB"
+  log_message "INFO" "Tiempo total: ${DURATION} segundos"
+
+  # Enviar notificación de éxito
+  send_notification "SUCCESS" "Backup de OpenKM completado exitosamente: ${FINAL_SIZE_MB}MB"
+}
+
 # ==================== SCRIPT PRINCIPAL ====================
 
 log_message "INFO" "==================== INICIANDO BACKUP ===================="
@@ -158,21 +177,7 @@ fi
 cleanup_old_backups
 
 # Mostrar información final
-local final_size
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  final_size=$(stat -f %z "$BACKUP_FILE")
-else
-  final_size=$(stat -c%s "$BACKUP_FILE")
-fi
-FINAL_SIZE_MB=$((final_size / 1024 / 1024))
-
-log_message "INFO" "==================== BACKUP COMPLETADO ===================="
-log_message "INFO" "Archivo: $BACKUP_FILE"
-log_message "INFO" "Tamaño final: ${FINAL_SIZE_MB}MB"
-log_message "INFO" "Tiempo total: ${DURATION} segundos"
-
-# Enviar notificación de éxito
-send_notification "SUCCESS" "Backup de OpenKM completado exitosamente: ${FINAL_SIZE_MB}MB"
+show_final_info
 
 log_message "INFO" "Proceso finalizado correctamente"
 exit 0

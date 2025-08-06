@@ -13,18 +13,9 @@ use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpWord\TemplateProcessor;
 use PhpOffice\PhpWord\Element\TextRun;
 
-// Lee la URL de la API externa (OpenKM) desde la variable de entorno 'EXTERNAL_API_URL'
-// para desacoplar la configuración del código. Esta variable se define en docker-compose.yml.
-// Si la variable de entorno no está definida, recurre al archivo data.json como respaldo.
-$dataInit = json_decode(file_get_contents(__DIR__ . "/data/data.json"), true);
-$base = getenv('EXTERNAL_API_URL');
-if ($base === false) {
-  $base = $dataInit["openKM"];
-}
 const USER = "okmAdmin";
 const PASSWORD = "admin";
 const REST = "/services/rest/";
-$nomCats = json_decode(file_get_contents(__DIR__ . "/data/labels.json"), true);
 
 const TEMP_DIR = __DIR__ . "/tmp/";
 
@@ -43,6 +34,34 @@ const CTGR_LISTADOS = ROOT_CTG_DOCS . "LISTADOS/";
 const CTGR_FIRMAS = ROOT_CTG_DOCS . "FIRMAS/";
 const RUTA_HOJAS = ROOT_TAX_PROF . "HOJAS_DE_VIDA/";
 const CTGR_DOCS_HOJAS = ROOT_CTG_DOCS . "HOJAS_DE_VIDA/";
+const DATA_APP = ROOT_TAX_DOCS . "DATA/";
+const IMG_APP = ROOT_TAX_DOCS . "IMG/";
+
+// Funciones básicas iniciales
+/**
+ * getLabelsData
+ * Obtiene los datos de achivos de datos JSON desde OpenKM.
+ * @param string $tipo Tipo de archivo a obtener, por ejemplo: "labels", "categorias", "documentos", etc.
+ * @return array|string Devuelve un array asociativo con los datos del JSON de datos solicitado.
+ */
+function getDataFile(string $nombre): array
+{
+  $query = "search/find?name=" . urlencode("$nombre.json") . "&path=" . urlencode(DATA_APP);
+  $uuid = json_decode(consulta($query), true)["queryResult"]["node"]["uuid"];
+  if ($uuid) {
+    return json_decode(getArchivo($uuid), true);
+  }
+  return ["error" => "No se pudo cargar $nombre.json"];
+}
+function getImageFile(string $nombre): void
+{
+  $query = "search/find?name=" . urlencode($nombre) . "&path=" . urlencode(IMG_APP);
+  $uuid = json_decode(consulta($query), true)["queryResult"]["node"]["uuid"];
+  $mimeType = json_decode(consulta("document/getProperties?docId=$uuid"), true)["mimeType"];
+  $respuesta = getArchivo($uuid);
+  header("Content-Type: " . $mimeType);
+  print $respuesta;
+}
 
 // ---------- Funciones API OpenKM
 /**
@@ -116,7 +135,7 @@ function getArbolCarpetas($uuid, $key = null)
 // Si se le proporciona un $key, construye el KEY del árbol a partir de ese número:
 // esto es útil para estructura de dato tipo dataTrees con keys únicos en Angular
 {
-  global $nomCats;
+  $nomCats = getDataFile("labels");
   $carpetas = [];
   $propiedades = json_decode(consulta("folder/getProperties?fldId=$uuid"), true);
   $tieneHijos = $propiedades["hasChildren"];
@@ -191,8 +210,7 @@ function simplePath($path) // Extrae la última parte de un path de categorias o
 function consulta(string $consulta, string $tipo = "GET", array|string|null $postData = null, array $headers = []): string
 // Hace llamadas a la API de OpenKM, GET por defecto
 {
-  global $base;
-  $path = $base . REST . $consulta;
+  $path = $_ENV["CORE_API_URL"] . REST . $consulta;
   if (!arrayMatch($headers, "Accept:")) array_push($headers, "Accept: application/json");
   if (!arrayMatch($headers, "Content-Type:")) array_push($headers, "Content-Type: application/json");
   $postData = (is_array($postData)) ? json_encode($postData) : $postData;
@@ -247,7 +265,7 @@ function getDocsFromCat($catUUID): array
 }
 function getPathGeneraLabel($uuid) // Genera un label, usando labels.json a partir del uuid de un documento o carpeta
 {
-  global $nomCats;
+  $nomCats = getDataFile("labels");
   return $nomCats[array_pop(explode("/", json_decode(consulta("folder/getProperties?fldId=$uuid"), true)["path"]))];
 }
 function getUUIDHijos(string $padreUUID): array // Obtiene los uuid de los hijos de una carpeta
@@ -258,7 +276,7 @@ function getUUIDHijos(string $padreUUID): array // Obtiene los uuid de los hijos
 }
 function getID($obj): array // Obtiene el "label" (no nativo de OpenKM) y extrae el uuid de un objeto
 {
-  global $nomCats;
+  $nomCats = getDataFile("labels");
   $partes = explode("/", $obj["path"]);
   $lastPart = array_pop($partes);
   $label = $nomCats[$lastPart];
@@ -325,8 +343,7 @@ function cargaArchivo(array $archivo, array $propiedades, string $path, bool | n
 }
 function documentAction(string $action, array $postData): string
 {
-  global $base;
-  $path = $base . REST . "document/$action";
+  $path = $_ENV["CORE_API_URL"] . REST . "document/$action";
   $curl = curl_init();
   curl_setopt($curl, CURLOPT_URL, $path);
   curl_setopt($curl, CURLOPT_USERNAME, USER);
@@ -627,12 +644,10 @@ function htmlToTextRun(string $texto): TextRun
 // Usa LibreOffice
 function convierteExcelToPDF(string $excel, string $dir): array
 {
-  global $dataInit;
   $fileInfo = pathinfo($excel);
   $nombreFile = $fileInfo["filename"];
-  $libreofficePath = $dataInit["libreofficePath"];
   $comando = escapeshellcmd(
-    "$libreofficePath --headless  --convert-to pdf:calc_pdf_Export --outdir " .
+    $_ENV["LIBREOFFICE_PATH"] . " --headless  --convert-to pdf:calc_pdf_Export --outdir " .
       escapeshellarg($dir) . " " . escapeshellarg("$dir/$excel") . " 2>&1"
   );
   $salida = exec($comando, $output, $rtn);
@@ -649,12 +664,10 @@ function convierteWordToPDF(string $word = "certificado.docx", string $dir = "./
 }
 function convierteOfficeToPDF(string $file, string $dir, string $handler): array
 {
-  global $dataInit;
   $fileInfo = pathinfo($file);
   $nombreFile = $fileInfo["filename"];
-  $libreofficePath = $dataInit["libreofficePath"];
   $comando = escapeshellcmd(
-    "$libreofficePath --headless  --convert-to pdf:$handler --outdir " .
+    $_ENV["LIBREOFFICE_PATH"] . " --headless  --convert-to pdf:$handler --outdir " .
       escapeshellarg($dir) . " " . escapeshellarg($file) . " 2>&1"
   );
   $salida = exec($comando, $output, $rtn);
@@ -663,6 +676,68 @@ function convierteOfficeToPDF(string $file, string $dir, string $handler): array
     return ["error" => null, "salida" => "$nombreFile.pdf"];
   } else {
     return ["error" => $err, "salida" => $salida, "rtn" => $rtn];
+  }
+}
+/*************************** FUNCIONES OCR/AI ******************************/
+/**
+ * extraerTextoDeDocumento
+ * @param string $filePath Ruta del archivo del documento a procesar
+ * @return array Resultado del OCR con el texto extraído
+ */
+function extraerTextoDeDocumento(string $filePath): array
+{
+  $ocrUrl = $_ENV['OCR_API_URL'] . '/extract-text';
+  $curl = curl_init();
+  curl_setopt($curl, CURLOPT_URL, $ocrUrl);
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($curl, CURLOPT_POST, true);
+  curl_setopt($curl, CURLOPT_TIMEOUT, 60);
+  curl_setopt($curl, CURLOPT_POSTFIELDS, ['file' => new CURLFile($filePath)]);
+  curl_setopt($curl, CURLOPT_HTTPHEADER, ["Accept: application/json"]);
+  $resp = curl_exec($curl);
+  $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+  curl_close($curl);
+  if ($httpCode === 200) {
+    return json_decode($resp, true);
+  } else {
+    return ["error" => "Error OCR: " . $resp];
+  }
+}
+/** Analiza un documento usando OCR y AI
+ * @param string $filePath Ruta del archivo del documento a procesar
+ * @param string $tipoDocumento Tipo de documento (ej. "certificado", "contrato", "documento de identidad", "hoja de vida")
+ * @param array $extraerDatos Datos a extraer del documento
+ * @param string|null $prompt Prompt personalizado para la AI (opcional)
+ * @return array Resultado del análisis con OCR y AI
+ */
+function analizaDocumento(string $filePath, string $tipoDocumento, array $extraerDatos, string | null $prompt = null): array
+{
+  $ocrResult = extraerTextoDeDocumento($filePath);
+  $extractedText = $ocrResult['text'];
+  $aiUrl = $_ENV['AI_API_URL'] . '/api/generate';
+  $prompt = $prompt ?? "Analiza este $tipoDocumento y extrae: " . implode(", ", $extraerDatos) . " :\n\n" . $extractedText . " en formato JSON.";
+  $aiPayload = [
+    'model' => 'phi3:mini',
+    'prompt' => $prompt,
+    'stream' => false
+  ];
+  $curl = curl_init();
+  curl_setopt($curl, CURLOPT_URL, $aiUrl);
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($curl, CURLOPT_POST, true);
+  curl_setopt($curl, CURLOPT_TIMEOUT, 60);
+  curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($aiPayload));
+  curl_setopt($curl, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
+  $aiResult = curl_exec($curl);
+  $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+  curl_close($curl);
+  if ($httpCode !== 200) {
+    return ["error" => "Error AI: " . $aiResult];
+  } else {
+    return [
+      'ocr_result' => $ocrResult,
+      'ai_analysis' => $aiResult
+    ];
   }
 }
 // De uso general
@@ -762,13 +837,12 @@ function csvToJsonByColumns($csvArray)
 
 function handleGetCategorias(): array // Devuelve un árbol de categorias (no Taxonomía) desde la categoría principal
 {
-  global $base;
   $respuesta = [];
-  $respuesta["uuidCat_URL"] = $base . REST . "repository/getCategoriesFolder";
+  $respuesta["uuidCat_URL"] = $_ENV["CORE_API_URL"] . REST . "repository/getCategoriesFolder";
   $uuidCat = json_decode(consulta("repository/getCategoriesFolder"), true)["uuid"];
   $respuesta["consulta_total"] = json_decode(consulta("repository/getCategoriesFolder"), true);
   $respuesta["uuidCat"] = $uuidCat;
-  $respuesta["tieneHijos_URL"] = $base . REST . "folder/getChildren?fldId=$uuidCat";
+  $respuesta["tieneHijos_URL"] = $_ENV["CORE_API_URL"] . REST . "folder/getChildren?fldId=$uuidCat";
   $tieneHijos = json_decode(consulta("folder/getProperties?fldId=$uuidCat"), true)["hasChildren"];
   if ($tieneHijos) {
     $uuidRUND = json_decode(consulta("folder/getChildren?fldId=$uuidCat"), true)["folder"]["uuid"];
@@ -1123,4 +1197,46 @@ function handlePostFile(array $params, array $files): array
       break;
   }
   return $salida;
+}
+function handleExtraeDatos(array $params, array $files): array
+{
+  if (!isset($params["accion"])) return ["error" => "Falta el parámetro 'accion'."];
+  $accion = $params["accion"];
+  switch ($accion) {
+    case "documento":
+      if (!isset($params["tipoDocumento"]) || !isset($params["extraerDatos"]) || !isset($files)) {
+        return ["error" => "Faltan los parámetros para extraer datos."];
+      }
+      $filePath = $files["documento"]["tmp_name"];
+      $tipoDocumento = $params["tipoDocumento"];
+      $extraerDatos = json_decode($params["extraerDatos"], true);
+      $prompt = isset($params["prompt"]) ? $params["prompt"] : null;
+      return analizaDocumento($filePath, $tipoDocumento, $extraerDatos, $prompt);
+      break;
+  }
+  return ["error" => "Acción no reconocida: $accion"];
+}
+function handleGetFile(string $tipo, string $nombre): array | null
+{
+  switch ($tipo) {
+    case "data":
+      return getDataFile($nombre);
+      break;
+    case "imagen":
+      getImageFile($nombre);
+      return null;
+      break;
+    default:
+      return ["error" => "No existe el parámetro 'accion' con valor $tipo"];
+  }
+}
+function handleInfo(): array
+{
+  $respuesta = [
+    "version" => "1.0.0",
+    "nombre" => "RUND API",
+    "descripcion" => "API para la gestión de documentos y certificados en RUND",
+    "autor" => "Oliver Castelblanco Martínez",
+  ];
+  return $respuesta;
 }
