@@ -36,8 +36,10 @@ const RUTA_HOJAS = ROOT_TAX_PROF . "HOJAS_DE_VIDA/";
 const CTGR_DOCS_HOJAS = ROOT_CTG_DOCS . "HOJAS_DE_VIDA/";
 const DATA_APP = ROOT_TAX_DOCS . "DATA/";
 const IMG_APP = ROOT_TAX_DOCS . "IMG/";
+const RUTA_CERT = ROOT_TAX_DOCS . "CERTIFICADOS/";
 
-// Funciones básicas iniciales
+
+// ---------- Funciones API OpenKM
 /**
  * getLabelsData
  * Obtiene los datos de achivos de datos JSON desde OpenKM.
@@ -62,8 +64,6 @@ function getImageFile(string $nombre): void
   header("Content-Type: " . $mimeType);
   print $respuesta;
 }
-
-// ---------- Funciones API OpenKM
 /**
  * creaCarpetas
  * Crea carpetas para categorias o taxonomía, carpeta a carpeta, en OpenKM a partir de una ruta dada y un prefijo.
@@ -384,8 +384,16 @@ function nuevaVersion(string $uuid, string $comentario, array $postData): string
     json_encode(["error" => "No se pudo hacer checkout.", "respCheckOut" => $respCheckOut, "consulta" => "document/isCheckedOut?docId=$uuid"]);
   return $salida;
 }
-function cargaJSON(array $dataJSON, string $nombreJSON, string $path, string | null $uuid = null): array
-// Genera un JSON a partir de un array asociativo y lo carga en la $path específica
+/**
+ * Genera un JSON a partir de un array asociativo y lo carga en la $path específica
+ * @param array $dataJSON Una array asociativa con la información que se convertirá a JSON
+ * @param string $nombreJSON El nombre del archivo JSON
+ * @param string $path Ruta completa en la taxonomía de OpenKM
+ * @param string | null $uuid El UUID del archivo JSON, si ya existe o null si es nuevo. Por defecto, null.
+ * @param string | null $mensaje El mensaje que se va a usar para el checkin/checkout del archivo, cuando se crea una nueva versión. Por defecto, null.
+ * @return array La respuesta, como una array asociativa, del proceso de creación o nueva versión del archivo.
+ */
+function cargaJSON(array $dataJSON, string $nombreJSON, string $path, string | null $uuid = null, string | null $mensaje = null): array
 {
   $json = json_encode($dataJSON, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
   $rutaDestino = $path . "/" . $nombreJSON;
@@ -396,7 +404,7 @@ function cargaJSON(array $dataJSON, string $nombreJSON, string $path, string | n
   $salida["postData"] = $postData;
   // Si es duplicado hace checkout/checkin o, sino, simplemente createSimple
   $resp = $uuid ?
-    nuevaVersion($uuid, "Modificado " . date("Y-m-d H:i:s"), $postData) :
+    nuevaVersion($uuid, "Modificado " . date("Y-m-d H:i:s") . ($mensaje ? " => " . $mensaje : ""), $postData) :
     documentAction("createSimple", $postData);
   $salida = verificaCarga($resp, $salida);
   return $salida;
@@ -440,7 +448,35 @@ function yaExiste(string $nombreArchivo, string $path): bool
   $respQuery = json_decode(consulta($query), true); // Consulta si el archivo ya existe
   return $respQuery && count($respQuery); // El archivo existe o no en esa carpeta de la Taxonomía
 }
-// Para PhpSpreadsheet
+/**
+ * Añade un objeto a un documento JSON que DEBE ser un array de objetos.
+ * En caso de que no existe en OpenKM, se generará como nuevo archivo, con la información proporcionada
+ * @param string $nombre El nombre completo del JSON, con extensión
+ * @param string $ruta La ruta completa al archivo
+ * @param string $data Un objeto (array asociativa PHP) que se añadirá al array existente (o recién creado) del JSON
+ * @param string $mensaje El mensaje que se usará al momento de hacer checkin/chekout en el JSON destino.
+ * @return array Array asociativo generado por la función verificaCarga()
+ */
+function addToJSON(string $nombre, string $ruta, array $data, string $mensaje): array
+{
+  $uuid = findArchivo($nombre, $ruta);
+  $dataJson = $uuid ? json_decode(getArchivo($uuid), true) : [];
+  array_push($dataJson, $data);
+  return cargaJSON($dataJson, $nombre, $ruta, $uuid, $mensaje);
+}
+/**
+ * Encuentra un archivo a partir del nombre y ruta
+ * @param string $nombre El nombre del archivo (case-sensitive) con extensión
+ * @param string $ruta La ruta absoluta del archivo
+ * @return string | null El UUID del archivo o, si no se encuentra, null
+ */
+function findArchivo(string $nombre, string $ruta): string | null
+{
+  $query = "search/find?name=" . urlencode($nombre) . "&path=" . urlencode($ruta);
+  $uuid = json_decode(consulta($query), true)["queryResult"]["node"]["uuid"];
+  return $uuid ?? null;
+}
+// ---------------  Para PhpSpreadsheet
 function autoFitCols($hoja)
 {
   foreach ($hoja->getColumnIterator() as $column) {
@@ -508,7 +544,7 @@ function creaGraficoBarras($valores, $categorias, $etiquetas, $titulo, $hoja, $p
   $chart->setBottomRightPosition($posGrafico[1]);
   $hoja->addChart($chart);
 }
-// Para PhpWord
+// ---------------  Para PhpWord
 function creaCertificado(string $ruta, string $nombrePlantilla, array $estructura): TemplateProcessor
 {
   $rutaPlantilla = $ruta . $nombrePlantilla;
@@ -641,46 +677,34 @@ function htmlToTextRun(string $texto): TextRun
   }
   return $textRun;
 }
-// Usa LibreOffice
-function convierteExcelToPDF(string $excel, string $dir): array
+// ---------------  Usa LibreOffice
+function convierteExcelToPDF(string $excel, string $dir = TEMP_DIR): array
 {
-  $fileInfo = pathinfo($excel);
-  $nombreFile = $fileInfo["filename"];
-  $comando = escapeshellcmd(
-    $_ENV["LIBREOFFICE_PATH"] . " --headless  --convert-to pdf:calc_pdf_Export --outdir " .
-      escapeshellarg($dir) . " " . escapeshellarg("$dir/$excel") . " 2>&1"
-  );
-  $salida = exec($comando, $output, $rtn);
-  if (false === $salida || 0 !== $rtn) $err = implode("\n", $output);
-  if (file_exists("$dir/$nombreFile.pdf")) {
-    return ["error" => null, "salida" => "$dir/$nombreFile.pdf"];
-  } else {
-    return ["error" => $err, "salida" => $salida, "rtn" => $rtn];
-  }
+  return convierteOfficeToPDF($excel, "calc_pdf_Export", $dir);
 }
-function convierteWordToPDF(string $word = "certificado.docx", string $dir = "./"): array
+function convierteWordToPDF(string $word = "certificado.docx", string $dir = TEMP_DIR): array
 {
-  return convierteOfficeToPDF($word, $dir, "writer_pdf_Export");
+  return convierteOfficeToPDF($word, "writer_pdf_Export", $dir);
 }
-function convierteOfficeToPDF(string $file, string $dir, string $handler): array
+function convierteOfficeToPDF(string $file, string $handler, string $dir = TEMP_DIR): array
 {
   $fileInfo = pathinfo($file);
-  $nombreFile = $fileInfo["filename"];
+  $nombrePDF = $dir . $fileInfo["filename"] . ".pdf";
   $comando = escapeshellcmd(
-    $_ENV["LIBREOFFICE_PATH"] . " --headless  --convert-to pdf:$handler --outdir " .
-      escapeshellarg($dir) . " " . escapeshellarg($file) . " 2>&1"
+    $_ENV["LIBREOFFICE_EXECUTABLE"] . " --headless --convert-to pdf:$handler --outdir " .
+      escapeshellarg($dir) . " " . escapeshellarg($dir . $file) . " 2>/dev/null"
   );
   $salida = exec($comando, $output, $rtn);
   if (false === $salida || 0 !== $rtn) $err = implode("\n", $output);
-  if (file_exists("$nombreFile.pdf")) {
-    return ["error" => null, "salida" => "$nombreFile.pdf"];
+  if (file_exists($nombrePDF)) {
+    return ["error" => null, "salida" => $nombrePDF];
   } else {
-    return ["error" => $err, "salida" => $salida, "rtn" => $rtn];
+    return ["error" => $err ?? "ERROR: no se pudo convertir el archivo.", "salida" => $salida, "rtn" => $rtn];
   }
 }
 /*************************** FUNCIONES OCR/AI ******************************/
 /**
- * extraerTextoDeDocumento
+ * extraerTextoDeDocumento Extrae con OCR los textos de un documento
  * @param string $filePath Ruta del archivo del documento a procesar
  * @return array Resultado del OCR con el texto extraído
  */
@@ -703,7 +727,8 @@ function extraerTextoDeDocumento(string $filePath): array
     return ["error" => "Error OCR: " . $resp];
   }
 }
-/** Analiza un documento usando OCR y AI
+/**
+ * analizaDocumento Analiza un documento usando OCR y AI
  * @param string $filePath Ruta del archivo del documento a procesar
  * @param string $tipoDocumento Tipo de documento (ej. "certificado", "contrato", "documento de identidad", "hoja de vida")
  * @param array $extraerDatos Datos a extraer del documento
@@ -832,6 +857,51 @@ function csvToJsonByColumns($csvArray)
   }
   return json_encode($jsonResult, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 }
+/**
+ * Genera un ID aleatorio de 16 caracteres a partir de una función SHA-256
+ * @param array $actualData Un array asociativo con objetos que contengan una key 'id', para evitar duplicados.
+ * @return string Una cadena alfanumérica ASCII de 16 caracteres con un ID único.
+ */
+function generaID(array $actualData = []): string
+{
+  $idsExistentes = array_flip(array_column($actualData, 'id'));
+  do {
+    $bytes = random_bytes(8); // 8 bytes = 16 caracteres hex
+    $id = bin2hex($bytes);
+  } while (isset($idsExistentes[$id]));
+  return $id;
+}
+/**
+ * Elimina múltiples archivos, usando patrones, tales como *, ?, {txt, log} y demás patrones de la función glob()
+ * @param string $nombre El nombre, incluyendo patrones o comodines, de los archivos que se quieren borrar
+ * @return array Un array asociativo con la llave "error". Si el valor de dicha llave es null, se ha ejecutado la acción sin problemas
+ */
+function borrarMultiplesArchivos(string $nombre): array
+{
+  // Obtener la lista de archivos que coinciden con el patrón
+  $archivos = glob($nombre);
+  // Verificar si glob tuvo un error (retorna false)
+  if ($archivos === false) {
+    return ['error' => 'Error al procesar el patrón.'];
+  }
+  // Si no hay archivos coincidentes, no hay acción
+  if (empty($archivos)) {
+    return ['error' => null];
+  }
+  // Intentar eliminar cada archivo
+  foreach ($archivos as $archivo) {
+    // Saltar directorios (unlink falla con directorios)
+    if (is_dir($archivo)) {
+      continue;
+    }
+    // Intentar borrar el archivo y capturar errores
+    if (!@unlink($archivo)) {
+      $error = error_get_last();
+      return ['error' => $error['message'] ?? "Error desconocido al borrar: $archivo"];
+    }
+  }
+  return ['error' => null];
+}
 
 // --- Handlers para el enrutador ---
 
@@ -924,6 +994,16 @@ function handleGetCertificado(array $postData): void
   $estructura = json_decode($postData["data"], true);
   $plantilla = $postData["plantilla"];
   $tipo = $postData["tipo"];
+  // Genera un ID aleatorio para la solicitud y permitir que se pueda recuperar después.
+  $nomJson = "expedidos.json";
+  $uuidJSON = findArchivo($nomJson, RUTA_CERT);
+  $dataJson = $uuidJSON ? json_decode(getArchivo($uuidJSON), true) : [];
+  $nuevoID = generaID($dataJson);
+  $postData["id"] = $nuevoID;
+  // Añade el objeto al JSON 'expedidos.json' para su posterior recuperación
+  $resp = addToJSON($nomJson, RUTA_CERT, $postData, "Añadido certificado ID:" . $nuevoID);
+
+  // Se debe añadir el ID ($nuevoID) al documento, para que, luego, pueda ser validado *********************************
   $nombrePlantilla = "$plantilla.docx";
   $phpTemplate = creaCertificado(RUTA_CERTIFICADOS, $nombrePlantilla, $estructura);
 
@@ -937,7 +1017,7 @@ function handleGetCertificado(array $postData): void
     $phpTemplate->saveAs("php://output");
   } elseif ($tipo == "pdf") {
     $nombreDOCX = "certificado_" . (new DateTime())->format("Y-m-d-H-i-s") . ".docx";
-    $phpTemplate->saveAs($nombreDOCX);
+    $phpTemplate->saveAs(TEMP_DIR . $nombreDOCX);
     $resp = convierteWordToPDF($nombreDOCX);
     if (null == $resp["error"]) {
       $pdfFilePath = $resp["salida"];
@@ -946,7 +1026,8 @@ function handleGetCertificado(array $postData): void
       header('Content-Length: ' . filesize($pdfFilePath));
       readfile($pdfFilePath);
       unlink($pdfFilePath);
-      unlink($nombreDOCX);
+      unlink(TEMP_DIR . $nombreDOCX);
+      borrarMultiplesArchivos(TEMP_DIR . "certificado_*"); // Intenta borrar todos los archivos de certificados en la carpeta tmp/
     }
   }
 }
@@ -1030,8 +1111,11 @@ function handleGetConsultaFile(array $postData, string $tipo): void
       exit;
       break;
     case "pdf": // Si la salida es un PDF
+      // Limpiamos la carpeta tmp de archivos con los nombres que vamos a usar
+      if (file_exists(TEMP_DIR . "reporte.xlsx")) unlink(TEMP_DIR . "reporte.xlsx");
+      if (file_exists(TEMP_DIR . "reporte.pdf")) unlink(TEMP_DIR . "reporte.pdf");
       $writer->save(TEMP_DIR . "reporte.xlsx");
-      $resp = convierteExcelToPDF("reporte.xlsx", TEMP_DIR);
+      $resp = convierteExcelToPDF("reporte.xlsx");
       if ($resp["error"] == null) {
         $pdfFilePath = $resp["salida"];
         header('Content-Type: application/pdf');
@@ -1237,6 +1321,7 @@ function handleInfo(): array
     "nombre" => "RUND API",
     "descripcion" => "API para la gestión de documentos y certificados en RUND",
     "autor" => "Oliver Castelblanco Martínez",
+    "ENV" => $_ENV,
   ];
   return $respuesta;
 }
