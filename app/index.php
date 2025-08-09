@@ -107,6 +107,14 @@ switch ($endpoint) {
       $respuesta = ["error" => "Falta el parámetro 'tipo' y/o 'nombre'"];
     }
     break;
+  case 'getCertificadoInfo':
+    if ($method == "GET" && isset($_GET["id"])) {
+      $respuesta = handleGetCertificadoInfo($_GET["id"]);
+    } else {
+      http_response_code(400);
+      $respuesta = ["error" => "Falta el parámetro 'id'"];
+    }
+    break;
   case 'info':
     if ($method == "GET") {
       $respuesta = handleInfo();

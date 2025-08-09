@@ -902,6 +902,21 @@ function borrarMultiplesArchivos(string $nombre): array
   }
   return ['error' => null];
 }
+/**
+ * Busca en un array de arrays asociativos por el campo 'id'
+ * @param array $array El array de arrays asociativos
+ * @param string $id El valor 'id' que se busca
+ * @return array El objeto que tiene un campo 'id' como el buscado o null si no existe
+ */
+function buscarPorId(array $array, string $id): array | null
+{
+  foreach ($array as $item) {
+    if ($item['id'] === $id) {
+      return $item;
+    }
+  }
+  return null;
+}
 
 // --- Handlers para el enrutador ---
 
@@ -994,14 +1009,19 @@ function handleGetCertificado(array $postData): void
   $estructura = json_decode($postData["data"], true);
   $plantilla = $postData["plantilla"];
   $tipo = $postData["tipo"];
-  // Genera un ID aleatorio para la solicitud y permitir que se pueda recuperar después.
+  // Genera un ID aleatorio para la solicitud y permitir que se pueda recuperar después, a menos que se envíe en el payload
   $nomJson = "expedidos.json";
   $uuidJSON = findArchivo($nomJson, RUTA_CERT);
   $dataJson = $uuidJSON ? json_decode(getArchivo($uuidJSON), true) : [];
-  $nuevoID = generaID($dataJson);
-  $postData["id"] = $nuevoID;
-  // Añade el objeto al JSON 'expedidos.json' para su posterior recuperación
-  $resp = addToJSON($nomJson, RUTA_CERT, $postData, "Añadido certificado ID:" . $nuevoID);
+  // Verifica si ya existe el ID. Si es así, no añade el objeto al JSON "expedidos.json".
+  $crearNuevoId = false;
+  if (isset($postData["id"])) $crearNuevoId = buscarPorId($dataJson, $postData["id"]) === null; // El id no existe en "expedidos.json"
+  if ($crearNuevoId) {
+    $nuevoID = generaID($dataJson);
+    $postData["id"] = $nuevoID;
+    // Añade el objeto al JSON 'expedidos.json' para su posterior recuperación
+    $resp = addToJSON($nomJson, RUTA_CERT, $postData, "Añadido certificado ID:" . $nuevoID);
+  }
 
   // Se debe añadir el ID ($nuevoID) al documento, para que, luego, pueda ser validado *********************************
   $nombrePlantilla = "$plantilla.docx";
@@ -1313,6 +1333,13 @@ function handleGetFile(string $tipo, string $nombre): array | null
     default:
       return ["error" => "No existe el parámetro 'accion' con valor $tipo"];
   }
+}
+function handleGetCertificadoInfo(string $id): array | null
+{
+  $nomJson = "expedidos.json";
+  $uuidJSON = findArchivo($nomJson, RUTA_CERT);
+  $dataJson = $uuidJSON ? json_decode(getArchivo($uuidJSON), true) : [];
+  return buscarPorId($dataJson, $id) ?? ["error" => "No existe el id buscado"];
 }
 function handleInfo(): array
 {
