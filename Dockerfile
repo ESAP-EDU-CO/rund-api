@@ -20,12 +20,21 @@ RUN apk update && apk add --no-cache \
   libreoffice \
   libreoffice-writer \
   libreoffice-calc \
-  # Image processing libraries for PHPOffice
+  # Image processing libraries for PHPOffice and QR codes
   libpng-dev \
   libjpeg-turbo-dev \
   freetype-dev \
   libzip-dev \
   icu-dev \
+  # ImageMagick runtime and development packages
+  imagemagick \
+  imagemagick-dev \
+  # Build dependencies for PECL extensions
+  autoconf \
+  gcc \
+  g++ \
+  make \
+  pkgconfig \
   # XML libraries (already included but needed for compilation)
   libxml2-dev \
   # Process management
@@ -44,7 +53,7 @@ RUN apk add --no-cache fontconfig ttf-dejavu cabextract wget && \
   rm arial32.exe && \
   fc-cache -f -v
 
-# Configure and install only the PHP extensions that need compilation
+# Configure and install PHP extensions
 # Note: xml, dom, xmlreader, xmlwriter, simplexml, fileinfo, mbstring are already built-in
 RUN docker-php-ext-configure gd \
   --with-freetype \
@@ -76,10 +85,11 @@ COPY docker/fpm-pool.conf /usr/local/etc/php-fpm.d/www.conf
 COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Create necessary directories including Nginx temp directories
+# Create necessary directories including QR storage and Nginx temp directories
 RUN mkdir -p /var/www/html/logs \
   && mkdir -p /var/www/html/tmp \
   && mkdir -p /var/www/html/tmp/nginx \
+  && mkdir -p /var/www/html/storage/qr \
   && mkdir -p /var/log/supervisor \
   && mkdir -p /run/nginx \
   && mkdir -p /run/php \
@@ -95,7 +105,8 @@ RUN chown -R www-data:www-data /var/www/html \
   && chown -R www-data:www-data /run/nginx \
   && chown -R www-data:www-data /run/php \
   && chown -R www-data:www-data /tmp/nginx_* \
-  && chmod -R 777 /tmp/nginx_*
+  && chmod -R 777 /tmp/nginx_* \
+  && chmod -R 775 /var/www/html/storage/qr
 
 # Don't switch to non-root user - supervisor needs root privileges
 # USER www-data

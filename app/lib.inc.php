@@ -4,6 +4,18 @@ error_reporting(E_ALL ^ (E_NOTICE | E_WARNING | E_DEPRECATED));
 date_default_timezone_set('America/Bogota');
 require_once __DIR__ . '/vendor/autoload.php';
 
+// Importar las clases necesarias para endroid/qr-code v6.x
+use Endroid\QrCode\Color\Color;
+use Endroid\QrCode\Encoding\Encoding;
+use Endroid\QrCode\ErrorCorrectionLevel;
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Label\Label;
+use Endroid\QrCode\Logo\Logo;
+use Endroid\QrCode\RoundBlockSizeMode;
+use Endroid\QrCode\Writer\PngWriter;
+use Endroid\QrCode\Writer\ValidationException;
+
+// Importar las clases necesarias para PHPOffice
 use PhpOffice\PhpSpreadsheet\Chart\Chart;
 use PhpOffice\PhpSpreadsheet\Chart\DataSeries;
 use PhpOffice\PhpSpreadsheet\Chart\Legend;
@@ -545,7 +557,7 @@ function creaGraficoBarras($valores, $categorias, $etiquetas, $titulo, $hoja, $p
   $hoja->addChart($chart);
 }
 // ---------------  Para PhpWord
-function creaCertificado(string $ruta, string $nombrePlantilla, array $estructura): TemplateProcessor
+function creaCertificado(string $ruta, string $nombrePlantilla, array $estructura, string $id): TemplateProcessor
 {
   $rutaPlantilla = $ruta . $nombrePlantilla;
   $templateProcessor = new TemplateProcessor($rutaPlantilla);
@@ -580,6 +592,11 @@ function creaCertificado(string $ruta, string $nombrePlantilla, array $estructur
       $templateProcessor = creaFirma($templateProcessor, $bloque["value"], $ruta);
     }
   }
+  // Crea la URL y el QR del validador
+  $validacion = creaQR($id);
+  $templateProcessor->setImageValue('valida_qr', $validacion["qr"]);
+  $templateProcessor->setValue('valida_url', $validacion["url"]);
+  unlink($validacion["qr"]); // Borra la imagen QR temporal
   return $templateProcessor;
 }
 function creaParrafoComplejo(TemplateProcessor $templateProcessor, string $texto, string $placeholder): TemplateProcessor
@@ -917,7 +934,69 @@ function buscarPorId(array $array, string $id): array | null
   }
   return null;
 }
+/**
+ * Crea un código QR con una URL de validación y lo almacena en el directorio temporal
+ * 
+ * @param string $id Cadena alfanumérica de 16 caracteres
+ * @return string Ruta completa donde se almacenó la imagen QR
+ * @throws InvalidArgumentException Si el ID no tiene el formato correcto
+ * @throws RuntimeException Si hay problemas al generar o guardar el QR
+ */
+function creaQR(string $id): array
+{
+  // Validar ID
+  if (!preg_match('/^[a-zA-Z0-9]{16}$/', $id)) {
+    throw new InvalidArgumentException('El ID debe ser una cadena alfanumérica de exactamente 16 caracteres');
+  }
 
+  // URL
+  $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+  $host = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost';
+  $url = $protocol . '://' . $host . "/validacion?certificado=" . $id;
+
+
+  $url = "http://localhost:4000/validacion?certificado=" . $id;
+
+
+
+  $writer = new PngWriter();
+  $qrCode = new QrCode(
+    data: $url,
+    encoding: new Encoding('UTF-8'),
+    errorCorrectionLevel: ErrorCorrectionLevel::Low,
+    size: 300,
+    margin: 10,
+    roundBlockSizeMode: RoundBlockSizeMode::Margin,
+    foregroundColor: new Color(0, 0, 0),
+    backgroundColor: new Color(255, 255, 255)
+  );
+
+  /*
+  // Create generic logo
+  $logo = new Logo(
+    path: __DIR__ . '/assets/bender.png',
+    resizeToWidth: 50,
+    punchoutBackground: true
+  );
+
+  // Create generic label
+  $label = new Label(
+    text: 'Label',
+    textColor: new Color(255, 0, 0)
+  );
+  */
+
+  $result = $writer->write($qrCode); //, $logo, $label);
+
+  // Validate the result
+  //$writer->validateResult($result, $url);
+
+  // Escribe
+  $filepath = TEMP_DIR . "qr_" . $id . ".png";
+  file_put_contents($filepath, $result->getString());
+
+  return ["qr" => $filepath, "url" => $url];
+}
 // --- Handlers para el enrutador ---
 
 function handleGetCategorias(): array // Devuelve un árbol de categorias (no Taxonomía) desde la categoría principal
@@ -1013,8 +1092,8 @@ function handleGetCertificado(array $postData): void
   $nomJson = "expedidos.json";
   $uuidJSON = findArchivo($nomJson, RUTA_CERT);
   $dataJson = $uuidJSON ? json_decode(getArchivo($uuidJSON), true) : [];
-  // Verifica si ya existe el ID. Si es así, no añade el objeto al JSON "expedidos.json".
-  $crearNuevoId = false;
+  // Verifica si es necesario crear un nuevo ID
+  $crearNuevoId = true;
   if (isset($postData["id"])) $crearNuevoId = buscarPorId($dataJson, $postData["id"]) === null; // El id no existe en "expedidos.json"
   if ($crearNuevoId) {
     $nuevoID = generaID($dataJson);
@@ -1025,7 +1104,7 @@ function handleGetCertificado(array $postData): void
 
   // Se debe añadir el ID ($nuevoID) al documento, para que, luego, pueda ser validado *********************************
   $nombrePlantilla = "$plantilla.docx";
-  $phpTemplate = creaCertificado(RUTA_CERTIFICADOS, $nombrePlantilla, $estructura);
+  $phpTemplate = creaCertificado(RUTA_CERTIFICADOS, $nombrePlantilla, $estructura, $postData["id"]);
 
   if ($tipo == "docx") {
     header("Content-Description: File Transfer");
