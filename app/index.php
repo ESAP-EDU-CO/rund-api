@@ -94,7 +94,7 @@ switch ($endpoint) {
     }
     break;
   case 'extraeDatos':
-    if ($method == 'POST' && isset($_FILES['archivo']) && isset($post_data)) {
+    if ($method == 'POST' && isset($_FILES['documento']) && isset($post_data)) {
       $respuesta = handleExtraeDatos($post_data, $_FILES);
     }
     break;
