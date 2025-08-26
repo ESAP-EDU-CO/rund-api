@@ -115,10 +115,17 @@ switch ($endpoint) {
       $respuesta = ["error" => "Falta el parámetro 'id'"];
     }
     break;
-  case 'info':
-    if ($method == "GET") {
-      $respuesta = handleInfo();
+  case 'imagen':
+    if ($method == "GET" && isset($_GET['nombre']) && isset($_GET['ruta'])) {
+      // Esta función genera un archivo y maneja sus propios headers y salida.
+      handleGetImagen($_GET);
+      exit();
     }
+    break;
+  case 'info':
+  if ($method == "GET") {
+    $respuesta = handleInfo();
+  }
 }
 
 // --- 5. Enviar la respuesta ---

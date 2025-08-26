@@ -67,10 +67,23 @@ function getDataFile(string $nombre): array
   }
   return ["error" => "No se pudo cargar $nombre.json"];
 }
-function getImageFile(string $nombre): void
+/**
+ * Devuelve directamente una imagen almacenada en OpenKM, a partir del nombre y la ruta.
+ * Si no se encuentra, devuelve un JSON con el error.
+ * @param string $nombre Nombre del archivo de imagen, con extensión
+ * @param string $ruta Ruta completa en OpenKM donde se encuentra la imagen
+ * @return void
+ */
+function getImageFile(string $nombre, string $ruta = IMG_APP): void
 {
-  $query = "search/find?name=" . urlencode($nombre) . "&path=" . urlencode(IMG_APP);
-  $uuid = json_decode(consulta($query), true)["queryResult"]["node"]["uuid"];
+  $query = "search/find?name=" . urlencode($nombre) . "&path=" . urlencode($ruta);
+  $rawResp = consulta($query);
+  if (substr($rawResp, 0, 19) == "RepositoryException") { // No se encuentra la imagen en la ruta
+    header("Content-Type: application/json");
+    echo json_encode(["error" => "No se encontró la imagen $nombre en la ruta $ruta"]);
+    exit();
+  }
+  $uuid = json_decode($rawResp, true)["queryResult"]["node"]["uuid"];
   $mimeType = json_decode(consulta("document/getProperties?docId=$uuid"), true)["mimeType"];
   $respuesta = getArchivo($uuid);
   header("Content-Type: " . $mimeType);
@@ -1853,8 +1866,15 @@ function handleGetCertificadoInfo(string $id): array | null
   $dataJson = $uuidJSON ? json_decode(getArchivo($uuidJSON), true) : [];
   return buscarPorId($dataJson, $id) ?? ["error" => "No existe el id buscado"];
 }
+function handleGetImagen(array $params):void
+{
+  $nombre = $params["nombre"];
+  $ruta = ROOT_TAX_DOCS . textoAnombreCarpeta($params["ruta"]);
+  getImageFile($nombre, $ruta);
+}
 function handleInfo(): array
 {
+  /*
   $datosExtraer = [
     'nombres' => null,
     'apellidos' => null,
@@ -1878,7 +1898,7 @@ function handleInfo(): array
   $aiPayload = construyeAiPayload("documento_identidad", $datosExtraer, $textoOCR);
   $respuestaIA = requestAI($aiPayload);
   $resultado = procesarRespuestaIA($respuestaIA['data']);
-
+*/
 
 
   $respuesta = [
@@ -1886,9 +1906,11 @@ function handleInfo(): array
     "nombre" => "RUND API",
     "descripcion" => "API para la gestión de documentos y certificados en RUND",
     "autor" => "Oliver Castelblanco Martínez",
+    /*
     "payload" => $aiPayload,
     "respuestaIA" => $respuestaIA,
     "procesadoAI" => $resultado,
+    */
   ];
   return $respuesta;
 }
