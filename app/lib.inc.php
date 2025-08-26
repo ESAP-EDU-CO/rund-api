@@ -49,6 +49,8 @@ const CTGR_DOCS_HOJAS = ROOT_CTG_DOCS . "HOJAS_DE_VIDA/";
 const DATA_APP = ROOT_TAX_DOCS . "DATA/";
 const IMG_APP = ROOT_TAX_DOCS . "IMG/";
 const RUTA_CERT = ROOT_TAX_DOCS . "CERTIFICADOS/";
+const TAX_PLANT = ROOT_TAX_DOCS . "PLANTILLAS/";
+const TAX_PLANT_CERT = TAX_PLANT . "CERTIFICADOS/";
 
 
 // ---------- Funciones API OpenKM
@@ -570,9 +572,14 @@ function creaGraficoBarras($valores, $categorias, $etiquetas, $titulo, $hoja, $p
   $hoja->addChart($chart);
 }
 // ---------------  Para PhpWord
-function creaCertificado(string $ruta, string $nombrePlantilla, array $estructura, string $id): TemplateProcessor
+function creaCertificado(string $nombrePlantilla, array $estructura, string $id, string $ruta = TAX_PLANT_CERT): TemplateProcessor
 {
-  $rutaPlantilla = $ruta . $nombrePlantilla;
+  $query = "search/find?name=" . urlencode($nombrePlantilla) . "&path=" . urlencode($ruta);
+  $rawResp = consulta($query);
+  $uuid = json_decode($rawResp, true)["queryResult"]["node"]["uuid"];
+  $respuesta = getArchivo($uuid);
+  $rutaPlantilla = TEMP_DIR . $nombrePlantilla;
+  file_put_contents($rutaPlantilla, $respuesta);
   $templateProcessor = new TemplateProcessor($rutaPlantilla);
   $numParrafo = 0;
   foreach ($estructura as $bloque) {
@@ -1549,8 +1556,7 @@ function handleGetCertificado(array $postData): void
 
   // Se debe añadir el ID ($nuevoID) al documento, para que, luego, pueda ser validado *********************************
   $nombrePlantilla = "$plantilla.docx";
-  $phpTemplate = creaCertificado(RUTA_CERTIFICADOS, $nombrePlantilla, $estructura, $postData["id"]);
-
+  $phpTemplate = creaCertificado($nombrePlantilla, $estructura, $postData["id"]);
   if ($tipo == "docx") {
     header("Content-Description: File Transfer");
     header('Content-Disposition: attachment; filename="' . $nombrePlantilla . '"');
@@ -1571,6 +1577,7 @@ function handleGetCertificado(array $postData): void
       readfile($pdfFilePath);
       unlink($pdfFilePath);
       unlink(TEMP_DIR . $nombreDOCX);
+      unlink(TEMP_DIR . $nombrePlantilla);
       borrarMultiplesArchivos(TEMP_DIR . "certificado_*"); // Intenta borrar todos los archivos de certificados en la carpeta tmp/
     }
   }
