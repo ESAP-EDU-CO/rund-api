@@ -51,6 +51,7 @@ const IMG_APP = ROOT_TAX_DOCS . "IMG/";
 const RUTA_CERT = ROOT_TAX_DOCS . "CERTIFICADOS/";
 const TAX_PLANT = ROOT_TAX_DOCS . "PLANTILLAS/";
 const TAX_PLANT_CERT = TAX_PLANT . "CERTIFICADOS/";
+const TAX_PLANTILLAS_REPORTES = TAX_PLANT . "REPORTES/";
 
 
 // ---------- Funciones API OpenKM
@@ -1553,8 +1554,6 @@ function handleGetCertificado(array $postData): void
     // Añade el objeto al JSON 'expedidos.json' para su posterior recuperación
     $resp = addToJSON($nomJson, RUTA_CERT, $postData, "Añadido certificado ID:" . $nuevoID);
   }
-
-  // Se debe añadir el ID ($nuevoID) al documento, para que, luego, pueda ser validado *********************************
   $nombrePlantilla = "$plantilla.docx";
   $phpTemplate = creaCertificado($nombrePlantilla, $estructura, $postData["id"]);
   if ($tipo == "docx") {
@@ -1565,6 +1564,7 @@ function handleGetCertificado(array $postData): void
     header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
     header('Expires: 0');
     $phpTemplate->saveAs("php://output");
+    unlink(TEMP_DIR . $nombrePlantilla);
   } elseif ($tipo == "pdf") {
     $nombreDOCX = "certificado_" . (new DateTime())->format("Y-m-d-H-i-s") . ".docx";
     $phpTemplate->saveAs(TEMP_DIR . $nombreDOCX);
@@ -1593,7 +1593,7 @@ function handleGetFirmas(array $getParams): void
     print $respuesta;
   }
 }
-function handleGetConsultaFile(array $postData, string $tipo): void
+function handleGetConsultaFile(array $postData, string $tipo, string $nombrePlantilla = "plantilla_reporte.xlsx"): void
 {
   $nombreHoja = "ConsultaRUND";
 
@@ -1606,7 +1606,13 @@ function handleGetConsultaFile(array $postData, string $tipo): void
   $dataNomCol = $postData["nomCol"];
 
   // Carga una plantilla
-  $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load(__DIR__ . "/docs/plantilla_reporte.xlsx");
+  $query = "search/find?name=" . urlencode($nombrePlantilla) . "&path=" . urlencode(TAX_PLANTILLAS_REPORTES);
+  $uuid = json_decode(consulta($query), true)["queryResult"]["node"]["uuid"];
+  $contPlantilla = getArchivo($uuid);
+  $tempPlantilla = TEMP_DIR . $nombrePlantilla;
+  file_put_contents($tempPlantilla, $contPlantilla);
+
+  $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tempPlantilla);
   $hoja = $spreadsheet->getActiveSheet();
   $hoja->setTitle($nombreHoja);
   $inicio = [1, 1]; // Se indica la posición inicial de la tabla. Depende de la plantilla.
@@ -1659,7 +1665,8 @@ function handleGetConsultaFile(array $postData, string $tipo): void
       header('Content-Disposition: attachment;filename="reporte.xls"');
       header('Cache-Control: max-age=0');
       $writer->save('php://output'); // Se envía directamente al cliente como Blob
-      exit;
+      if (file_exists($tempPlantilla)) unlink($tempPlantilla);
+      exit();
       break;
     case "pdf": // Si la salida es un PDF
       // Limpiamos la carpeta tmp de archivos con los nombres que vamos a usar
@@ -1673,7 +1680,8 @@ function handleGetConsultaFile(array $postData, string $tipo): void
         header('Content-Disposition: attachment; filename="' . basename($pdfFilePath) . '"');
         header('Content-Length: ' . filesize($pdfFilePath));
         readfile($pdfFilePath);
-        exit;
+        if (file_exists($tempPlantilla)) unlink($tempPlantilla);
+        exit();
       } else {
         print(json_encode($resp));
       }
