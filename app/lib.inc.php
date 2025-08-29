@@ -38,20 +38,22 @@ const ROOT_TAX_DOCS = ROOT_TAX . "DOCUMENTOS/";
 const ROOT_CTG_DOCS = ROOT_CTG . "DOCUMENTOS/";
 const ROOT_TAX_PROF = ROOT_TAX . "DOCENTES/";
 const ROOT_CTG_PROF = ROOT_CTG . "DOCENTES/";
-const RUTA_PLANTILLAS = "plantillas/";
-const RUTA_CERTIFICADOS = RUTA_PLANTILLAS . "certificados/";
-const RUTA_FIRMAS = ROOT_TAX_DOCS . "FIRMAS/";
-const RUTA_LISTADOS = ROOT_TAX_DOCS . "LISTADOS/";
+
 const CTGR_LISTADOS = ROOT_CTG_DOCS . "LISTADOS/";
 const CTGR_FIRMAS = ROOT_CTG_DOCS . "FIRMAS/";
-const RUTA_HOJAS = ROOT_TAX_PROF . "HOJAS_DE_VIDA/";
 const CTGR_DOCS_HOJAS = ROOT_CTG_DOCS . "HOJAS_DE_VIDA/";
-const DATA_APP = ROOT_TAX_DOCS . "DATA/";
-const IMG_APP = ROOT_TAX_DOCS . "IMG/";
-const RUTA_CERT = ROOT_TAX_DOCS . "CERTIFICADOS/";
-const TAX_PLANT = ROOT_TAX_DOCS . "PLANTILLAS/";
-const TAX_PLANT_CERT = TAX_PLANT . "CERTIFICADOS/";
-const TAX_PLANTILLAS_REPORTES = TAX_PLANT . "REPORTES/";
+
+const TAX_FIRMAS = ROOT_TAX_DOCS . "FIRMAS/";
+const TAX_LISTADOS = ROOT_TAX_DOCS . "LISTADOS/";
+const TAX_HOJAS = ROOT_TAX_PROF . "HOJAS_DE_VIDA/";
+const TAX_CERTIFICADOS = ROOT_TAX_DOCS . "CERTIFICADOS/";
+
+const TAX_PLANTILLAS = ROOT_TAX_DOCS . "PLANTILLAS/";
+const TAX_PLANTILLAS_CERTIFICADOS = TAX_PLANTILLAS . "CERTIFICADOS/";
+const TAX_PLANTILLAS_REPORTES = TAX_PLANTILLAS . "REPORTES/";
+
+const TAX_APP_DATA = ROOT_TAX_DOCS . "DATA/";
+const TAX_APP_IMG = ROOT_TAX_DOCS . "IMG/";
 
 
 // ---------- Funciones API OpenKM
@@ -63,7 +65,7 @@ const TAX_PLANTILLAS_REPORTES = TAX_PLANT . "REPORTES/";
  */
 function getDataFile(string $nombre): array
 {
-  $query = "search/find?name=" . urlencode("$nombre.json") . "&path=" . urlencode(DATA_APP);
+  $query = "search/find?name=" . urlencode("$nombre.json") . "&path=" . urlencode(TAX_APP_DATA);
   $uuid = json_decode(consulta($query), true)["queryResult"]["node"]["uuid"];
   if ($uuid) {
     return json_decode(getArchivo($uuid), true);
@@ -77,7 +79,7 @@ function getDataFile(string $nombre): array
  * @param string $ruta Ruta completa en OpenKM donde se encuentra la imagen
  * @return void
  */
-function getImageFile(string $nombre, string $ruta = IMG_APP): void
+function getImageFile(string $nombre, string $ruta = TAX_APP_IMG): void
 {
   $query = "search/find?name=" . urlencode($nombre) . "&path=" . urlencode($ruta);
   $rawResp = consulta($query);
@@ -573,7 +575,7 @@ function creaGraficoBarras($valores, $categorias, $etiquetas, $titulo, $hoja, $p
   $hoja->addChart($chart);
 }
 // ---------------  Para PhpWord
-function creaCertificado(string $nombrePlantilla, array $estructura, string $id, string $ruta = TAX_PLANT_CERT): TemplateProcessor
+function creaCertificado(string $nombrePlantilla, array $estructura, string $id, string $ruta = TAX_PLANTILLAS_CERTIFICADOS): TemplateProcessor
 {
   $query = "search/find?name=" . urlencode($nombrePlantilla) . "&path=" . urlencode($ruta);
   $rawResp = consulta($query);
@@ -1543,7 +1545,7 @@ function handleGetCertificado(array $postData): void
   $tipo = $postData["tipo"];
   // Genera un ID aleatorio para la solicitud y permitir que se pueda recuperar después, a menos que se envíe en el payload
   $nomJson = "expedidos.json";
-  $uuidJSON = findArchivo($nomJson, RUTA_CERT);
+  $uuidJSON = findArchivo($nomJson, TAX_CERTIFICADOS);
   $dataJson = $uuidJSON ? json_decode(getArchivo($uuidJSON), true) : [];
   // Verifica si es necesario crear un nuevo ID
   $crearNuevoId = true;
@@ -1552,7 +1554,7 @@ function handleGetCertificado(array $postData): void
     $nuevoID = generaID($dataJson);
     $postData["id"] = $nuevoID;
     // Añade el objeto al JSON 'expedidos.json' para su posterior recuperación
-    $resp = addToJSON($nomJson, RUTA_CERT, $postData, "Añadido certificado ID:" . $nuevoID);
+    $resp = addToJSON($nomJson, TAX_CERTIFICADOS, $postData, "Añadido certificado ID:" . $nuevoID);
   }
   $nombrePlantilla = "$plantilla.docx";
   $phpTemplate = creaCertificado($nombrePlantilla, $estructura, $postData["id"]);
@@ -1586,7 +1588,7 @@ function handleGetFirmas(array $getParams): void
 {
   if (!isset($getParams["uuid"]) || !isset($getParams["mimeType"])) {
     header('Content-Type: application/json; charset=utf-8');
-    print json_encode(getFirmas(RUTA_FIRMAS));
+    print json_encode(getFirmas(TAX_FIRMAS));
   } else {
     $respuesta = getArchivo($getParams["uuid"]);
     header("Content-Type: " . $getParams["mimeType"]);
@@ -1707,7 +1709,7 @@ function handleLoadList(string $method, array $params, array $files): array
   $propiedades = json_decode(html_entity_decode($params["propiedades"], ENT_QUOTES | ENT_HTML5, 'UTF-8'), true);
   $nombreArchivo = extraeElemento($propiedades, "label", "Nombre")["valor"];
   $tipo = textoAnombreCarpeta(extraeElemento($propiedades, "label", "Tipo")["valor"]);
-  $path = RUTA_LISTADOS . $tipo;
+  $path = TAX_LISTADOS . $tipo;
   $query = "search/find?name=" . urlencode($nombreArchivo) . "&path=" . urlencode($path);
 
   switch ($accion) {
@@ -1759,7 +1761,7 @@ function handlePostFile(array $params, array $files): array
 
   switch ($accion) {
     case "cargaFirma":
-      $path = RUTA_FIRMAS;
+      $path = TAX_FIRMAS;
       $dupe = yaExiste($nombreArchivo, $path);
       $cargo = textoAnombreCarpeta(extraeElemento($propiedades, "label", "cargo")["valor"]);
       $categorias = [
@@ -1813,7 +1815,7 @@ function handlePostFile(array $params, array $files): array
       }
       $ruta = extraeElemento($propiedades, "label", "taxonomia")["valor"]; // Ruta de la carpeta del documento, como viene desde el frontend
       $ruta = strlen($ruta) > 2 ? "/" . textoAnombreCarpeta($ruta) : '';
-      $path = RUTA_HOJAS . $cedula . $ruta; // Ruta de la carpeta del documento, es decir, la taxonomía
+      $path = TAX_HOJAS . $cedula . $ruta; // Ruta de la carpeta del documento, es decir, la taxonomía
       $dupe = yaExiste($nombreArchivo, $path); // Verifica si ya existe un archivo con el mismo nombre en la ruta
       $esCedula = extraeElemento($propiedades, "label", "esCedula")["valor"]; // Verifica si el documento es una cédula
       $tipoDocumento = extraeElemento($propiedades, "label", "tipo")["valor"]; // Extrae el tipo de documento (cédula o la carpeta de la tax)
@@ -1830,7 +1832,7 @@ function handlePostFile(array $params, array $files): array
       $rutasCategorias[] = CTGR_DOCS_HOJAS . "ORIGEN/" . textoAnombreCarpeta($origenDocumento); // Añade la categoría del origen del documento
       foreach ($rutasCategorias as $rutaCategoria) $categorias[] = ["path" => $rutaCategoria]; // Genera el array de categorías a las que pertenece el documento
       $salida = [];
-      $salida["creaTaxonomia"] = creaCarpetas([$cedula . $ruta], RUTA_HOJAS); // Crea las carpetas de forma recursiva de la taxonomía en OpenKM, si no existe
+      $salida["creaTaxonomia"] = creaCarpetas([$cedula . $ruta], TAX_HOJAS); // Crea las carpetas de forma recursiva de la taxonomía en OpenKM, si no existe
       $salida["creaCategorias"] = creaCarpetas($rutasCategorias, ROOT_CTG); // Crea las categorías en OpenKM si no existen
       $salida["carga"] = cargaArchivo($files["archivo"], $propiedades, $path, $dupe); // Carga el archivo en OpenKM
       $query = "search/find?name=" . urlencode($nombreArchivo) . "&path=" . urlencode($path); // Genera la query para buscar el UUID del archivo cargado
@@ -1877,11 +1879,11 @@ function handleGetFile(string $tipo, string $nombre): array | null
 function handleGetCertificadoInfo(string $id): array | null
 {
   $nomJson = "expedidos.json";
-  $uuidJSON = findArchivo($nomJson, RUTA_CERT);
+  $uuidJSON = findArchivo($nomJson, TAX_CERTIFICADOS);
   $dataJson = $uuidJSON ? json_decode(getArchivo($uuidJSON), true) : [];
   return buscarPorId($dataJson, $id) ?? ["error" => "No existe el id buscado"];
 }
-function handleGetImagen(array $params):void
+function handleGetImagen(array $params): void
 {
   $nombre = $params["nombre"];
   $ruta = ROOT_TAX_DOCS . textoAnombreCarpeta($params["ruta"]);

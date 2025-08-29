@@ -123,9 +123,10 @@ switch ($endpoint) {
     }
     break;
   case 'info':
-  if ($method == "GET") {
-    $respuesta = handleInfo();
-  }
+    if ($method == "GET") {
+      $respuesta = handleInfo();
+    }
+    break;
 }
 
 // --- 5. Enviar la respuesta ---
