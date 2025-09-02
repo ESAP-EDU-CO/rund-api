@@ -122,6 +122,14 @@ switch ($endpoint) {
       exit();
     }
     break;
+  case 'getInfoProfesor':
+    if ($method == "GET" && isset($_GET["cedula"])) {
+      $respuesta = handleGetInfoProfesor($_GET["cedula"]);
+    } else {
+      http_response_code(400);
+      $respuesta = ["error" => "Falta el parámetro 'cédula'"];
+    }
+    break;
   case 'info':
     if ($method == "GET") {
       $respuesta = handleInfo();

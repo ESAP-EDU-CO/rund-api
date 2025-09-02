@@ -58,7 +58,6 @@ const TAX_APP_IMG = ROOT_TAX_DOCS . "IMG/";
 
 // ---------- Funciones API OpenKM
 /**
- * getLabelsData
  * Obtiene los datos de achivos de datos JSON desde OpenKM.
  * @param string $tipo Tipo de archivo a obtener, por ejemplo: "labels", "categorias", "documentos", etc.
  * @return array|string Devuelve un array asociativo con los datos del JSON de datos solicitado.
@@ -70,7 +69,7 @@ function getDataFile(string $nombre): array
   if ($uuid) {
     return json_decode(getArchivo($uuid), true);
   }
-  return ["error" => "No se pudo cargar $nombre.json"];
+  return ["error" => "No se pudo obtener $nombre.json"];
 }
 /**
  * Devuelve directamente una imagen almacenada en OpenKM, a partir del nombre y la ruta.
@@ -505,6 +504,105 @@ function findArchivo(string $nombre, string $ruta): string | null
   $query = "search/find?name=" . urlencode($nombre) . "&path=" . urlencode($ruta);
   $uuid = json_decode(consulta($query), true)["queryResult"]["node"]["uuid"];
   return $uuid ?? null;
+}
+/**
+ * Obtiene información a partir de los documentos del profesor
+ * @param string $cedula Cédula del profesor, que es el nombre de la carpeta donde se encuentra su hoja de vida
+ * @param bool $demo Indica si se quiere la información demográfica (true, por defecto) o solo la información del documento (tipo, origen, formato)
+ * @return array|null Devuelve un array con la información del documento y sus categorías, o null si no se encuentra el documento
+  Ejemplo de salida:
+  [
+    "nombre" => "hoja_de_vida.pdf",
+    "categorias" => [
+      ["tipo_de_doc", "origen", "formato"],
+      ...
+    ]
+  ]
+ */
+function getInfoArchivosProfesor(string $cedula, bool $demo = true): array | null
+{
+  $buscaNombre = $demo ? "&name=" . urlencode("cedula") : "";
+  $query = "search/find?path=" . urlencode(TAX_HOJAS . $cedula) . $buscaNombre;
+  $resp = json_decode(consulta($query), true)["queryResult"];
+  if (!$resp) return null;
+  // Es información demográfica, que se obtiene de un único documento: la cédula
+  if ($demo) return extraeDatosDocumento($resp["node"], TAX_HOJAS, ROOT_CTG_PROF);
+  // Se solicita información de TODOS los documentos almacenados del profesor
+  $datos = [];
+  foreach ($resp as $el) {
+    $nodo = $el["node"];
+    $datos[] = extraeDatosDocumento($nodo, TAX_HOJAS, CTGR_DOCS_HOJAS);
+  }
+  return $datos;
+}
+/**
+ * Extrae la información de un documento (nombre y categorias)
+ * @param array $nodo Nodo del documento, tal como lo devuelve la API de OpenKM
+ * @param string $tax Ruta base de la taxonomía donde se encuentra el documento
+ * @param string $cat Ruta base de las categorías donde se encuentran las categorías del documento (pueden ser de documento o demográficas)
+ * @return array Array con el nombre del documento y un array de arrays con las categorías asignadas al documento
+ */
+function extraeDatosDocumento(array $nodo, string $tax, string $cat): array
+{
+  // Extrae el nombre del archivo
+  $path = $nodo["path"];
+  $path = preg_replace("#$tax#", "", $path);
+  $partes = explode("/", $path);
+  $nombre = array_pop($partes);
+  // Extrae las categorías (sean de documento o demográficas) del documento
+  $cates = $nodo["categories"];
+  $categorias = [];
+  foreach ($cates as $cate) {
+    $pathCate = $cate["path"];
+    if (preg_match("#$cat#", $pathCate)) {
+      $ruta = preg_replace("#$cat#", "", $pathCate);
+      $partes = explode("/", $ruta);
+      $categorias[] = $partes;
+    }
+  }
+  return [
+    "nombre" => $nombre,
+    "categorias" => $categorias,
+  ];
+}
+/**
+ * Estructura un array de categorías en un array multidimensional, cambiando los nombres de los elementos por los "labels" correspondientes
+ * @param array $categorias Array de categorías, cada una con 2 o 3 niveles
+ * @return array Array multidimensional con las categorías estructuradas y los labels correspondientes
+ */
+function estructuraCategorias(array $categorias): array
+{
+  $resultado = [];
+  $labels = getDataFile("labels"); // Los labels obtenidos de labels.json en rund-core
+  foreach ($categorias as $item) {
+    if (count($item) === 3) {
+      // Caso de 3 niveles: [categoria][subcategoria] = valor
+      $categoria = $labels[$item[0]];
+      $subcategoria = $labels[$item[1]];
+      $valor = $labels[$item[2]];
+      // Si ya existe esta combinación categoria/subcategoria
+      if (isset($resultado[$categoria][$subcategoria])) {
+        // Si no es array todavía, convertirlo
+        if (!is_array($resultado[$categoria][$subcategoria])) {
+          $resultado[$categoria][$subcategoria] = [$resultado[$categoria][$subcategoria]];
+        }
+        // Añadir el nuevo valor
+        $resultado[$categoria][$subcategoria][] = $valor;
+      } else {
+        // Primera vez que aparece esta combinación
+        $resultado[$categoria][$subcategoria] = $valor;
+      }
+    } elseif (count($item) === 2) {
+      // Caso de 2 niveles: [categoria][] = valor
+      $categoria = $labels[$item[0]];
+      $valor = $labels[$item[1]];
+      if (!isset($resultado[$categoria])) {
+        $resultado[$categoria] = [];
+      }
+      $resultado[$categoria][] = $valor;
+    }
+  }
+  return $resultado;
 }
 // ---------------  Para PhpSpreadsheet
 function autoFitCols($hoja)
@@ -1453,7 +1551,6 @@ function creaQR(string $id): array
   return ["qr" => $filepath, "url" => $url];
 }
 // --- Handlers para el enrutador ---
-
 function handleGetCategorias(): array // Devuelve un árbol de categorias (no Taxonomía) desde la categoría principal
 {
   $respuesta = [];
@@ -1888,6 +1985,24 @@ function handleGetImagen(array $params): void
   $nombre = $params["nombre"];
   $ruta = ROOT_TAX_DOCS . textoAnombreCarpeta($params["ruta"]);
   getImageFile($nombre, $ruta);
+}
+/**
+ * Devuelve la informción de documentos y demográfica de un profesor a partir de su cédula.
+ * @param string $cedula Cédula del profesor
+ * @return array Un objeto con la información demográfica del profesor y los documentos que están almacenados en rund-core.
+ */
+function handleGetInfoProfesor(string $cedula): array
+{
+  // Valida que la cédula esté compuesta solo por números: mínimo 4, máximo 20.
+  if (!preg_match('/^\d{4,20}$/', $cedula)) return ["error" => "La cédula debe tener entre 4 y 20 dígitos."];
+  $archivosProfesor = getInfoArchivosProfesor($cedula, false);
+  $datosDemograficos = getInfoArchivosProfesor($cedula);
+  if (null !== $datosDemograficos) {
+    $datosDemograficos["categorias"] = estructuraCategorias($datosDemograficos["categorias"]);
+    return ["archivosProfesor" => $archivosProfesor, "datosDemograficos" => $datosDemograficos];
+  } else {
+    return ["error" => null, "resultado" => "El profesor con cédula $cédula no tiene datos registrados en rund-core."];
+  }
 }
 function handleInfo(): array
 {
