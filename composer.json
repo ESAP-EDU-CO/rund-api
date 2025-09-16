@@ -17,7 +17,12 @@
 	},
 	"autoload": {
 		"psr-4": {
-			"Rund\\Api\\": "app/"
+			"RUND\\": "app/src/"
+		}
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"RUND\\Tests\\": "tests/"
 		}
 	},
 	"config": {
@@ -26,6 +31,11 @@
 		"allow-plugins": {
 			"composer/package-versions-deprecated": true
 		}
+	},
+	"scripts": {
+		"post-autoload-dump": [
+			"@php -r \"file_exists('app/src/Config/Constants.php') || exit(0); echo 'RUND autoloader configured successfully\\n';\""
+		]
 	},
 	"minimum-stability": "stable",
 	"prefer-stable": true

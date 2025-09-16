@@ -23,17 +23,17 @@ class DataHandlers
 {
   /**
    * Maneja la obtención de datos CSV desde OpenKM y su conversión a JSON
-   * @param array $params Parámetros necesarios para la consulta:
-   *   - 'categoria': Categoría del documento
-   *   - 'tipo': Tipo de documento
-   *   - 'nombre': Nombre del archivo (sin extensión)
-   *   - 'extension': Extensión del archivo (por ejemplo, '.csv')
-   * @return array Un array con 'arrayCSV' (array de arrays), 'columnasCSV' (array de objetos) y 'rawCSV' (contenido original) o un array con 'error'
+   *
+   * @param array{categoria?: string, tipo?: string, nombre?: string, extension?: string} $params Parámetros necesarios para la consulta
+   * @return array{arrayCSV?: array<array<string>>, columnasCSV?: array<object>, rawCSV?: string, error?: string} Datos CSV procesados o error
    */
   public static function getCsvData(array $params): array
   {
-    if (!isset($params["categoria"]) || !isset($params["tipo"]) || !isset($params["nombre"]) || !isset($params["extension"])) {
-      return ["error" => "Faltan parámetros para getCsvData"];
+    $requiredParams = ['categoria', 'tipo', 'nombre', 'extension'];
+    $missingParams = array_diff($requiredParams, array_keys($params));
+
+    if (!empty($missingParams)) {
+      return ["error" => "Faltan parámetros requeridos: " . implode(', ', $missingParams)];
     }
 
     $path = Config::ROOT_TAX_DOCS . Utils::textoAnombreCarpeta($params["categoria"] . "/" . $params["tipo"]);

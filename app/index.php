@@ -1,12 +1,20 @@
 <?php
-require_once("lib.inc.php");
-require_once __DIR__ . "/src/Core/Utils.php";
-require_once __DIR__ . "/src/Core/OpenKM.php";
+/**
+ * RUND API - Punto de entrada principal
+ *
+ * Router moderno con autoloader PSR-4
+ *
+ * @author ESAP Development Team / Oliver Castelblanco
+ * @version 3.0
+ * @since PHP 8.3
+ */
 
-use RUND\Core\Utils as Utils;
-use RUND\Core\OpenKM as OpenKM;
+declare(strict_types=1);
 
-Utils::cors();
+// Cargar sistema moderno
+require_once __DIR__ . '/bootstrap.php';
+
+use RUND\Core\OpenKM;
 
 // --- 1. Definir la respuesta por defecto y las cabeceras ---
 $respuesta = null;

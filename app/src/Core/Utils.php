@@ -52,12 +52,12 @@ class Utils
 
   /**
    * Determina si un array es simple (no asociativo ni stdClass)
-   * @param array $array El array a evaluar
+   * @param array|null $array El array a evaluar
    * @return bool TRUE si es un array simple, FALSE en caso contrario
    */
-  public static function esArraySimple(array $array): bool
+  public static function esArraySimple(array|null $array): bool
   {
-    return is_array($array) && array_key_first($array) === 0;
+    return is_array($array) && !empty($array) && array_key_first($array) === 0;
   }
 
   /**

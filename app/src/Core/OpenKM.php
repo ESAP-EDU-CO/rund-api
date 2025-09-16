@@ -139,10 +139,24 @@ class OpenKM
    * @param string $uuid UUID del documento o carpeta
    * @return string El label correspondiente o el UUID si no se encuentra
    */
-  public static function getPathGeneraLabel($uuid)
+  public static function getPathGeneraLabel(string $uuid): string
   {
-    $nomCats = self::getDataFile("labels");
-    return $nomCats[array_pop(explode("/", json_decode(self::consulta("folder/getProperties?fldId=$uuid"), true)["path"]))];
+    try {
+      $nomCats = self::getDataFile("labels");
+      $response = self::consulta("folder/getProperties?fldId=$uuid");
+      $properties = json_decode($response, true);
+
+      if (!$properties || !isset($properties["path"])) {
+        return $uuid;
+      }
+
+      $pathParts = explode("/", $properties["path"]);
+      $lastPart = array_pop($pathParts);
+
+      return $nomCats[$lastPart] ?? $uuid;
+    } catch (\Exception $e) {
+      return $uuid;
+    }
   }
 
   /**
@@ -169,7 +183,7 @@ class OpenKM
   {
     $hijos = json_decode(self::consulta("folder/getChildren?fldId=$padreUUID"), true)["folder"];
     if (!Utils::esArraySimple($hijos)) $hijos = [$hijos];
-    return array_map("getID", $hijos);
+    return array_map(fn($hijo) => $hijo["uuid"], $hijos);
   }
 
   // =========================================================================== //
