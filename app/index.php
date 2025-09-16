@@ -18,6 +18,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 // Cargar configuración de rutas
 require_once __DIR__ . '/routes.php';
+require_once __DIR__ . '/routes_v2.php';
 
 use RUND\Core\Router;
 
@@ -25,8 +26,11 @@ try {
 	// Crear e inicializar el router
 	$router = new Router();
 
-	// Configurar todas las rutas
+	// Configurar rutas v1 (compatibilidad)
 	setupRoutes($router);
+
+	// Configurar rutas v2 (nuevas)
+	setupRoutesV2($router);
 
 	// Procesar la solicitud
 	$router->dispatch();
