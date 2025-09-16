@@ -17,38 +17,34 @@ ini_set('display_errors', '1');
 error_reporting(E_ALL ^ (E_NOTICE | E_WARNING | E_DEPRECATED));
 date_default_timezone_set('America/Bogota');
 
-// Cargar autoloader de Composer (compatible con Docker y desarrollo local)
+// Cargar dependencias de Composer (PhpOffice, etc.)
 $autoloadPaths = [
-    __DIR__ . '/vendor/autoload.php',     // Desarrollo local
-    __DIR__ . '/../vendor/autoload.php',  // Docker
+    __DIR__ . '/vendor/autoload.php',     // Desarrollo local (con vendor en app/)
+    __DIR__ . '/../vendor/autoload.php',  // Desarrollo local (con vendor en raíz)
+    '/var/www/html/vendor/autoload.php',  // Docker (ruta absoluta)
 ];
 
-$autoloaderFound = false;
 foreach ($autoloadPaths as $path) {
     if (file_exists($path)) {
         require_once $path;
-        $autoloaderFound = true;
         break;
     }
 }
 
-// Fallback para entornos sin Composer (como contenedor Docker actual)
-if (!$autoloaderFound) {
-    // Autoloader manual para compatibilidad temporal
-    spl_autoload_register(function ($class) {
-        if (strpos($class, 'RUND\\') !== 0) {
-            return;
-        }
+// Autoloader manual para nuestras clases RUND (siempre necesario)
+spl_autoload_register(function ($class) {
+    if (strpos($class, 'RUND\\') !== 0) {
+        return;
+    }
 
-        $classPath = str_replace('RUND\\', '', $class);
-        $classPath = str_replace('\\', '/', $classPath);
-        $file = __DIR__ . '/src/' . $classPath . '.php';
+    $classPath = str_replace('RUND\\', '', $class);
+    $classPath = str_replace('\\', '/', $classPath);
+    $file = __DIR__ . '/src/' . $classPath . '.php';
 
-        if (file_exists($file)) {
-            require_once $file;
-        }
-    });
-}
+    if (file_exists($file)) {
+        require_once $file;
+    }
+});
 
 // Importar clases principales
 use RUND\Core\{Utils, OpenKM};
@@ -161,6 +157,6 @@ function handleExtraeDatos(array $params, array $files): array
 }
 
 // Bootstrap completado
-if (defined('RUND_DEBUG') && RUND_DEBUG) {
+if (defined('RUND_DEBUG') && constant('RUND_DEBUG')) {
     error_log("RUND API Bootstrap v3.0 loaded successfully");
 }
