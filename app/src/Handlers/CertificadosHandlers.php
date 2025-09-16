@@ -15,7 +15,7 @@ declare(strict_types=1);
 namespace RUND\Handlers;
 
 use RUND\Core\Utils as Utils;
-use RUND\Config\Constants as Config;
+use RUND\Config\Config as Config;
 use RUND\Core\OpenKM as OpenKM;
 use RUND\Services\DocumentService as DocumentService;
 use RUND\Services\CertificadosService as CertificadosService;

@@ -1,11 +1,12 @@
 <?php
 
 /**
- * RUND-API - Constantes de Configuración
+ * RUND API - Constantes de Configuración
  * 
  * Todas las constantes utilizadas en el sistema RUND.
+ * Separadas en módulos para mejor organización.
  * 
- * @author ESAP Development Team / Oliver Castelblanco Martínez oliver.castelblanco@esap.edu.co
+ * @author ESAP Development Team
  * @version 2.0
  * @since PHP 8.3
  */
@@ -14,7 +15,7 @@ declare(strict_types=1);
 
 namespace RUND\Config;
 
-class Constants
+class Config
 {
   // ============================================================================
   // CONFIGURACIÓN PRINCIPAL
@@ -36,13 +37,16 @@ class Constants
   // ESTRUCTURA DE RUTAS EN OPENKM
   // ============================================================================
 
+
+  // ----------------------------- RUTAS BASE -----------------------------
   /** @var string Ruta raíz de taxonomía en OpenKM */
   const ROOT_TAX = "/okm:root/RUND/";
 
   /** @var string Ruta raíz de categorías en OpenKM */
   const ROOT_CTG = "/okm:categories/RUND/";
 
-  // -------------------------  RUTAS PRINCIPALES -------------------------
+
+  // ----------------------------- RUTAS PRINCIPALES -----------------------------
   /** @var string Documentos en taxonomía */
   const ROOT_TAX_DOCS = self::ROOT_TAX . "DOCUMENTOS/";
 
@@ -55,13 +59,14 @@ class Constants
   /** @var string Docentes en categorías */
   const ROOT_CTG_PROF = self::ROOT_CTG . "DOCENTES/";
 
-  /** @var string Config en taxonomía */
+  /** @var string Configuración en taxonomía */
   const ROOT_TAX_CONF = self::ROOT_TAX . "CONFIG/";
 
-  /** @var string Config en categorías */
-  const ROOT_CTG_CONF = self::ROOT_CTG . "DOCENTES/";
+  /** @var string Configuración en categorías */
+  const ROOT_CTG_CONF = self::ROOT_CTG . "CONFIG/";
 
-  // ------------------------- CATEGORÍAS ESPECÍFICAS -------------------------
+
+  // ----------------------------- CATEGORÍAS ESPECÍFICAS -----------------------------
   /** @var string Categoría de listados */
   const CTGR_LISTADOS = self::ROOT_CTG_DOCS . "LISTADOS/";
 
@@ -71,7 +76,14 @@ class Constants
   /** @var string Categoría de hojas de vida */
   const CTGR_DOCS_HOJAS = self::ROOT_CTG_DOCS . "HOJAS_DE_VIDA/";
 
-  // ------------------------- TAXONOMÍAS ESPECÍFICAS -------------------------
+  /** @var string Categoría de imágenes de app */
+  const CTGR_CONF_IMG = self::ROOT_CTG_CONF . "IMG/";
+
+  /** @var string Categoría de imágenes de app */
+  const CTGR_CONF_DATA = self::ROOT_CTG_CONF . "DATA/";
+
+
+  // ----------------------------- TAXONOMÍAS ESPECÍFICAS -----------------------------
   /** @var string Taxonomía de firmas */
   const TAX_FIRMAS = self::ROOT_TAX_DOCS . "FIRMAS/";
 
@@ -80,9 +92,6 @@ class Constants
 
   /** @var string Taxonomía de hojas de vida */
   const TAX_HOJAS = self::ROOT_TAX_PROF . "HOJAS_DE_VIDA/";
-
-  /** @var string Taxonomía de hojas de vida */
-  const TAX_PTA = self::ROOT_TAX_PROF . "PTA/";
 
   /** @var string Taxonomía de certificados */
   const TAX_CERTIFICADOS = self::ROOT_TAX_DOCS . "CERTIFICADOS/";

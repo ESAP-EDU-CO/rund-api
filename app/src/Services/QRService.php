@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace RUND\Services;
 
-use RUND\Config\Constants as Config;
+use RUND\Config\Config as Config;
 
 // No usar use const, usar la clase Config
 use Endroid\QrCode\Color\Color;
@@ -53,7 +53,7 @@ class QRService
     $writer = new PngWriter();
     $result = $writer->write($qrCode);
 
-    $filepath = __DIR__ . "/../../tmp/" . "qr_" . $id . ".png";
+    $filepath = Config::TEMP_DIR . "qr_" . $id . ".png";
 
     if (file_put_contents($filepath, $result->getString()) === false) {
       throw new RuntimeException("No se pudo guardar el código QR en: $filepath");

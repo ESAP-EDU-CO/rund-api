@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace RUND\Core;
 
-use RUND\Config\Constants as Config;
+use RUND\Config\Config as Config;
 use RUND\Core\Utils as Utils;
 
 class OpenKM

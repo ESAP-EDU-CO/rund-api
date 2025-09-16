@@ -13,7 +13,7 @@ declare(strict_types=1);
 
 namespace RUND\Handlers;
 
-use RUND\Config\Constants as Config;
+use RUND\Config\Config as Config;
 use RUND\Core\OpenKM as OpenKM;
 use RUND\Core\Utils as Utils;
 use RUND\Services\CategoriasService as CategoriasService;

@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace RUND\Services;
 
-use RUND\Config\Constants as Config;
+use RUND\Config\Config as Config;
 use RUND\Core\OpenKM as OpenKM;
 
 class DocumentService

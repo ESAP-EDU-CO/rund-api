@@ -16,7 +16,7 @@ namespace RUND\Services;
 
 
 use RUND\Core\OpenKM as OpenKM;
-use RUND\Config\Constants as Config;
+use RUND\Config\Config as Config;
 
 use PhpOffice\PhpSpreadsheet\IOFactory as IOFactory;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet as Worksheet;

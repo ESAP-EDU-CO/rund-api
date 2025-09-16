@@ -4,7 +4,7 @@ error_reporting(E_ALL ^ (E_NOTICE | E_WARNING | E_DEPRECATED));
 date_default_timezone_set('America/Bogota');
 require_once __DIR__ . '/vendor/autoload.php';
 
-require_once __DIR__ . "/src/Config/Constants.php";
+require_once __DIR__ . "/src/Config/Config.php";
 require_once __DIR__ . "/src/Core/OpenKM.php";
 require_once __DIR__ . "/src/Core/Utils.php";
 require_once __DIR__ . "/src/Services/DocumentService.php";
