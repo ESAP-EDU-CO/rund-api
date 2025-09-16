@@ -19,3 +19,6 @@ app/exports/*
 
 # Docker
 .dockerignore
+
+composer.lock
+vendor/

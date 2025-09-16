@@ -1,6 +1,12 @@
 <?php
 require_once("lib.inc.php");
-cors(); // Maneja las cabeceras CORS
+require_once __DIR__ . "/src/Core/Utils.php";
+require_once __DIR__ . "/src/Core/OpenKM.php";
+
+use RUND\Core\Utils as Utils;
+use RUND\Core\OpenKM as OpenKM;
+
+Utils::cors();
 
 // --- 1. Definir la respuesta por defecto y las cabeceras ---
 $respuesta = null;
@@ -55,7 +61,7 @@ switch ($endpoint) {
 
   case 'deleteFile':
     if ($method == 'DELETE' && isset($_GET['uuid'])) {
-      $respuesta = json_encode(["error" => null, "salida" => borraArchivo($_GET["uuid"])]);
+      $respuesta = json_encode(["error" => null, "salida" => OpenKM::borraArchivo($_GET["uuid"])]);
     } else {
       http_response_code(400);
       $respuesta = json_encode(["error" => "Se requiere método DELETE y parámetro 'uuid'"]);
