@@ -1,6 +1,6 @@
 {
 	"name": "rund/api",
-	"description": "RUND API - Document processing API with PHPOffice",
+	"description": "RUND-API - Document processing API with PHPOffice",
 	"type": "project",
 	"require": {
 		"php": "^8.3",
