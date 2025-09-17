@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUND API v2 - Documentación</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui.css" />
+    <style>
+        html {
+            box-sizing: border-box;
+            overflow: -moz-scrollbars-vertical;
+            overflow-y: scroll;
+        }
+
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+
+        body {
+            margin: 0;
+            background: #fafafa;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        .swagger-ui .topbar {
+            background-color: #2c5282;
+        }
+
+        .swagger-ui .topbar .download-url-wrapper .select-label {
+            color: white;
+        }
+
+        .swagger-ui .info .title {
+            color: #2c5282;
+        }
+
+        /* Personalización para RUND */
+        .custom-header {
+            background: linear-gradient(135deg, #2c5282 0%, #3182ce 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .custom-header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        .custom-header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .migration-status {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .migration-status h3 {
+            color: #2d3748;
+            margin-top: 0;
+        }
+
+        .progress-bar {
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            height: 20px;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            background: linear-gradient(90deg, #48bb78, #38a169);
+            height: 100%;
+            width: 69%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .status-column {
+            background: white;
+            border-radius: 6px;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .status-column h4 {
+            margin: 0 0 10px 0;
+            color: #2d3748;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .endpoint-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .endpoint-list li {
+            padding: 4px 0;
+            font-size: 12px;
+            color: #4a5568;
+        }
+
+        .endpoint-list li:before {
+            content: "✓ ";
+            color: #48bb78;
+            font-weight: bold;
+        }
+
+        .pending-list li:before {
+            content: "⏳ ";
+            color: #ed8936;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="custom-header">
+        <h1>RUND API v2</h1>
+        <p>API RESTful moderna para la gestión de documentos y certificados</p>
+    </div>
+
+    <div style="max-width: 1200px; margin: 0 auto; padding: 0 20px;">
+        <div class="migration-status">
+            <h3>🚀 Estado de Migración v1 → v2</h3>
+            <div class="progress-bar">
+                <div class="progress-fill">69% Completado</div>
+            </div>
+            <div class="status-grid">
+                <div class="status-column">
+                    <h4>✅ Endpoints Migrados (9/13)</h4>
+                    <ul class="endpoint-list">
+                        <li>system/info</li>
+                        <li>system/health</li>
+                        <li>system/capabilities</li>
+                        <li>categorias/arbol</li>
+                        <li>categorias/cruce</li>
+                        <li>profesores/{cedula}</li>
+                        <li>archivos/datos</li>
+                        <li>archivos/imagenes</li>
+                        <li>certificados/{id}</li>
+                    </ul>
+                </div>
+                <div class="status-column">
+                    <h4>⏳ Pendientes (4/13)</h4>
+                    <ul class="endpoint-list pending-list">
+                        <li>listados/cargar</li>
+                        <li>firmas/lista</li>
+                        <li>ai/extraer</li>
+                        <li>documentos/exportar</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="swagger-ui"></div>
+
+    <script src="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui-standalone-preset.js"></script>
+    <script>
+        window.onload = function() {
+            // Begin Swagger UI call region
+            const ui = SwaggerUIBundle({
+                url: '/openapi.yaml',
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+                // Configuración en español
+                requestInterceptor: function(request) {
+                    // Agregar headers comunes si es necesario
+                    request.headers['Accept-Language'] = 'es-ES,es;q=0.9';
+                    return request;
+                },
+                responseInterceptor: function(response) {
+                    // Log responses for debugging
+                    console.log('API Response:', response);
+                    return response;
+                },
+                // Personalización de la UI
+                supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
+                operationsSorter: "alpha",
+                tagsSorter: "alpha",
+                docExpansion: "list",
+                filter: true,
+                showRequestHeaders: true,
+                showCommonExtensions: true,
+                // Servidores por defecto
+                servers: [
+                    {
+                        url: 'http://localhost:3000/api/v2',
+                        description: 'Servidor de desarrollo'
+                    }
+                ]
+            });
+            // End Swagger UI call region
+
+            window.ui = ui;
+
+            // Agregar funcionalidad adicional
+            setTimeout(function() {
+                // Agregar información adicional al cargar
+                console.log('RUND API v2 Documentation loaded');
+
+                // Verificar conectividad con la API
+                fetch('http://localhost:3000/api/v2/system/health')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'healthy') {
+                            console.log('✅ API está operativa');
+                        }
+                    })
+                    .catch(error => {
+                        console.warn('⚠️ No se pudo conectar con la API:', error);
+                    });
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

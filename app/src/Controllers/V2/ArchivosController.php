@@ -19,6 +19,7 @@ use RUND\Controllers\BaseController;
 use RUND\Handlers\FileHandlers;
 use RUND\Handlers\DataHandlers;
 use RUND\Core\OpenKM;
+use RUND\Config\Config;
 
 class ArchivosController extends BaseController
 {
@@ -120,7 +121,7 @@ class ArchivosController extends BaseController
     /**
      * GET /api/v2/archivos/imagenes/{nombre}
      * GET /img/{nombre} (alias corto)
-     * Sirve una imagen directamente
+     * Sirve una imagen directamente desde OpenKM
      */
     public function getImagen(array $params = []): ?array
     {
@@ -128,8 +129,16 @@ class ArchivosController extends BaseController
             return $this->errorResponse('Nombre es requerido', 400);
         }
 
-        return $this->fileResponse(function() use ($params) {
-            OpenKM::getImageFile($params['nombre']);
+        $nombre = $params['nombre'];
+
+        // Para imágenes del sistema, usar la ruta de plantillas
+        $queryParams = [
+            'nombre' => $nombre,
+            'ruta' => 'plantillas/certificados' // Ruta estándar para imágenes del sistema
+        ];
+
+        return $this->fileResponse(function() use ($queryParams) {
+            DataHandlers::getImagen($queryParams);
         });
     }
 

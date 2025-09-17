@@ -25,7 +25,8 @@ use RUND\Controllers\{
 use RUND\Middleware\{
 	CorsMiddleware,
 	ValidationMiddleware,
-	AuthMiddleware
+	AuthMiddleware,
+	DeprecationMiddleware
 };
 
 /**
@@ -36,6 +37,7 @@ function setupRoutes(Router $router): void
 	// Middleware global
 	$router->addGlobalMiddleware([CorsMiddleware::class, 'handle']);
 	$router->addGlobalMiddleware(ValidationMiddleware::logRequest());
+	$router->addGlobalMiddleware(DeprecationMiddleware::markAsDeprecated());
 
 	// --- Rutas del sistema ---
 	$router->get('/info', [SystemController::class, 'getInfo']);
@@ -87,11 +89,13 @@ function setupRoutes(Router $router): void
 	// --- Rutas de firmas ---
 	$router->get('/getFirmas', [FirmasController::class, 'getFirmas']);
 
+
 	// --- Rutas de IA ---
 	$router->post('/extraeDatos', [AIController::class, 'extraeDatos'], [
 		ValidationMiddleware::requireFiles(['documento']),
 		ValidationMiddleware::validateFileSize(50 * 1024 * 1024) // 50MB max
 	]);
+
 
 	// --- Rutas preparadas para RUND-PTA (ejemplos) ---
 	$router->group('/v2', function (Router $router) {

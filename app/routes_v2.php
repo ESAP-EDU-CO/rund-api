@@ -25,6 +25,7 @@ use RUND\Controllers\V2\{
     FirmasController,
     AIController
 };
+use RUND\Controllers\V2\SystemController as V2SystemController;
 use RUND\Middleware\{
     CorsMiddleware,
     ValidationMiddleware,
@@ -44,6 +45,9 @@ function setupRoutesV2(Router $router): void
             $router->get('/info', [SystemController::class, 'getInfo']);
             $router->get('/health', [SystemController::class, 'getHealth']);
             $router->get('/capabilities', [SystemController::class, 'getCapabilities']);
+            $router->get('/migration', [SystemController::class, 'getMigrationStatus']);
+            $router->get('/deprecation', [SystemController::class, 'getDeprecationStatus']);
+            $router->get('/docs', [SystemController::class, 'getDocs']);
         });
 
         // --- Certificados ---
@@ -78,11 +82,13 @@ function setupRoutesV2(Router $router): void
             $router->post('/subir', [ArchivosController::class, 'subir'], [
                 ValidationMiddleware::requireFiles(['archivo'])
             ]);
-            $router->get('/{uuid}', [ArchivosController::class, 'show']);
-            $router->delete('/{uuid}', [ArchivosController::class, 'delete']);
+            // Rutas específicas DEBEN ir antes de las rutas con parámetros genéricos
             $router->get('/datos/{nombre}', [ArchivosController::class, 'getDatos']);
             $router->get('/imagenes/{nombre}', [ArchivosController::class, 'getImagen']);
             $router->delete('/temp/limpiar', [ArchivosController::class, 'limpiarTemp']);
+            // Rutas genéricas van al final
+            $router->get('/{uuid}', [ArchivosController::class, 'show']);
+            $router->delete('/{uuid}', [ArchivosController::class, 'delete']);
         });
 
         // --- Listados ---
@@ -110,10 +116,12 @@ function setupRoutesV2(Router $router): void
                 ValidationMiddleware::validateFileSize(50 * 1024 * 1024) // 50MB max
             ]);
         });
+
     });
 
     // --- URLs cortas para componentes (compatibilidad) ---
     $router->get('/img/{nombre}', [ArchivosController::class, 'getImagen']);
     $router->post('/upload/archivos', [ArchivosController::class, 'subir']);
     $router->post('/upload/listados', [ListadosController::class, 'cargar']);
+
 }

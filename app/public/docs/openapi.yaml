@@ -1,0 +1,1176 @@
+openapi: 3.0.3
+info:
+  title: RUND API v2
+  description: |
+    API RESTful moderna para la gestión de documentos y certificados en RUND.
+
+    ## Arquitectura
+    - **Versión**: 2.0
+    - **Idioma**: Español (rutas sin caracteres especiales)
+    - **Estilo**: RESTful con nomenclatura descriptiva
+    - **Autoloader**: PSR-4 vía Composer
+    - **Namespace**: RUND
+
+    ## Características
+    - ✅ Gestión de certificados (plantillas 1050, 1051, 1231)
+    - ✅ Gestión de archivos (50MB máximo)
+    - ✅ Extracción de datos con IA/OCR
+    - ✅ Listados Excel/CSV con validación
+    - ✅ Sistema de firmas digitales
+
+    ## Migración
+    Esta API está en proceso de migración desde v1. Consulte `/api/v2/system/migration`
+    para conocer el estado actual del proceso.
+
+  version: "2.0"
+  contact:
+    name: Oliver Castelblanco Martínez
+    email: oliver.castelblanco@esap.edu.co
+  license:
+    name: ESAP Internal License
+
+servers:
+  - url: http://localhost:3000/api/v2
+    description: Servidor de desarrollo
+  - url: https://rund.esap.edu.co/api/v2
+    description: Servidor de producción
+
+paths:
+  # --- Sistema ---
+  /system/info:
+    get:
+      tags: [Sistema]
+      summary: Información completa del sistema
+      description: Obtiene metadatos completos de la API, endpoints disponibles y configuración.
+      responses:
+        '200':
+          description: Información del sistema obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemInfo'
+              example:
+                version: "2.0"
+                api_version: "v2"
+                nombre: "RUND API v2"
+                descripcion: "API RESTful moderna para la gestión de documentos y certificados en RUND"
+                arquitectura: "RESTful con Controllers modulares"
+                idioma: "español"
+                endpoints:
+                  certificados: "/api/v2/certificados"
+                  categorias: "/api/v2/categorias"
+
+  /system/health:
+    get:
+      tags: [Sistema]
+      summary: Health check para monitoreo
+      description: Endpoint para verificar el estado de salud de la API y servicios conectados.
+      responses:
+        '200':
+          description: Sistema saludable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              example:
+                status: "healthy"
+                version: "2.0"
+                timestamp: "2024-01-15 14:30:00"
+                uptime: "24h 15m"
+                services:
+                  database: "connected"
+                  storage: "available"
+                  ai: "operational"
+
+  /system/capabilities:
+    get:
+      tags: [Sistema]
+      summary: Capacidades y funcionalidades disponibles
+      description: Lista todas las características, límites y capacidades de la API.
+      responses:
+        '200':
+          description: Capacidades obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Capabilities'
+
+  /system/migration:
+    get:
+      tags: [Sistema]
+      summary: Estado de migración v1 → v2
+      description: Muestra el progreso de migración desde la API v1 a v2.
+      responses:
+        '200':
+          description: Estado de migración obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationStatus'
+
+  /system/deprecation:
+    get:
+      tags: [Sistema]
+      summary: Estado de deprecación de endpoints v1
+      description: |
+        Información completa sobre endpoints v1 deprecados, sus sucesores v2
+        y recomendaciones para la migración.
+      responses:
+        '200':
+          description: Estado de deprecación obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeprecationStatus'
+              example:
+                v1_endpoints:
+                  status: "deprecated"
+                  sunset_date: "2025-12-31"
+                  total_deprecated: 11
+                  migration_guide: "/api/v2/docs"
+                migration_info:
+                  progress: "69%"
+                  completed_migrations: 9
+                  pending_migrations: 4
+
+  # --- Certificados ---
+  /certificados/{id}:
+    get:
+      tags: [Certificados]
+      summary: Obtener certificado por ID
+      description: Recupera la información de un certificado específico por su identificador.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID único del certificado
+      responses:
+        '200':
+          description: Certificado encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Certificado'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /certificados/generar:
+    post:
+      tags: [Certificados]
+      summary: Generar nuevo certificado
+      description: Crea un nuevo certificado basado en una plantilla y datos proporcionados.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerarCertificadoRequest'
+      responses:
+        '201':
+          description: Certificado generado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificadoGenerado'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /certificados/plantillas:
+    get:
+      tags: [Certificados]
+      summary: Listar plantillas disponibles
+      description: Obtiene todas las plantillas de certificados disponibles en el sistema.
+      responses:
+        '200':
+          description: Plantillas obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plantillas:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Plantilla'
+
+  # --- Categorías ---
+  /categorias/arbol:
+    get:
+      tags: [Categorías]
+      summary: Árbol completo de categorías
+      description: Obtiene la estructura jerárquica completa de categorías del sistema.
+      responses:
+        '200':
+          description: Árbol de categorías obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  arbol:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Categoria'
+                  metadata:
+                    $ref: '#/components/schemas/ResponseMetadata'
+
+  /categorias/cruce/{x}/{y}:
+    get:
+      tags: [Categorías]
+      summary: Cruce entre dos categorías
+      description: Obtiene la intersección o relación entre dos categorías específicas.
+      parameters:
+        - name: x
+          in: path
+          required: true
+          schema:
+            type: string
+          description: UUID de la primera categoría
+        - name: y
+          in: path
+          required: true
+          schema:
+            type: string
+          description: UUID de la segunda categoría
+      responses:
+        '200':
+          description: Cruce de categorías obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CruceCategoria'
+
+  # --- Profesores ---
+  /profesores/{cedula}:
+    get:
+      tags: [Profesores]
+      summary: Información de profesor por cédula
+      description: Obtiene la información completa de un profesor mediante su número de cédula.
+      parameters:
+        - name: cedula
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Número de cédula del profesor
+      responses:
+        '200':
+          description: Información del profesor obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profesor'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /profesores/{cedula}/archivos:
+    get:
+      tags: [Profesores]
+      summary: Archivos asociados al profesor
+      description: Lista todos los archivos vinculados a un profesor específico.
+      parameters:
+        - name: cedula
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Número de cédula del profesor
+      responses:
+        '200':
+          description: Archivos obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  archivos:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Archivo'
+
+  /profesores/{cedula}/demografia:
+    get:
+      tags: [Profesores]
+      summary: Información demográfica del profesor
+      description: Obtiene datos demográficos específicos del profesor.
+      parameters:
+        - name: cedula
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Número de cédula del profesor
+      responses:
+        '200':
+          description: Información demográfica obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Demografia'
+
+  # --- Documentos ---
+  /documentos/plantillas:
+    get:
+      tags: [Documentos]
+      summary: Listar plantillas de documentos
+      description: Obtiene todas las plantillas de documentos disponibles.
+      responses:
+        '200':
+          description: Plantillas obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plantillas:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlantillaDocumento'
+
+  /documentos/generar:
+    post:
+      tags: [Documentos]
+      summary: Generar nuevo documento
+      description: Crea un documento basado en una plantilla y datos específicos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerarDocumentoRequest'
+      responses:
+        '201':
+          description: Documento generado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentoGenerado'
+
+  /documentos/exportar:
+    post:
+      tags: [Documentos]
+      summary: Exportar documento
+      description: Exporta un documento en el formato especificado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportarDocumentoRequest'
+      responses:
+        '200':
+          description: Documento exportado exitosamente
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+
+  # --- Archivos ---
+  /archivos/subir:
+    post:
+      tags: [Archivos]
+      summary: Subir archivo
+      description: Sube un archivo al sistema con validación de formato y tamaño.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                archivo:
+                  type: string
+                  format: binary
+                  description: Archivo a subir (máximo 50MB)
+              required:
+                - archivo
+      responses:
+        '201':
+          description: Archivo subido exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArchivoSubido'
+        '413':
+          description: Archivo demasiado grande
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /archivos/{uuid}:
+    get:
+      tags: [Archivos]
+      summary: Obtener archivo por UUID
+      description: Descarga un archivo específico mediante su UUID.
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID único del archivo
+      responses:
+        '200':
+          description: Archivo encontrado
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Archivos]
+      summary: Eliminar archivo
+      description: Elimina un archivo del sistema mediante su UUID.
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID único del archivo
+      responses:
+        '204':
+          description: Archivo eliminado exitosamente
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /archivos/datos/{nombre}:
+    get:
+      tags: [Archivos]
+      summary: Obtener datos de archivo por nombre
+      description: Recupera información de un archivo usando su nombre.
+      parameters:
+        - name: nombre
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Nombre del archivo
+      responses:
+        '200':
+          description: Datos del archivo obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatosArchivo'
+
+  /archivos/imagenes/{nombre}:
+    get:
+      tags: [Archivos]
+      summary: Obtener imagen por nombre
+      description: Descarga una imagen específica por su nombre.
+      parameters:
+        - name: nombre
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Nombre de la imagen
+      responses:
+        '200':
+          description: Imagen encontrada
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/svg+xml:
+              schema:
+                type: string
+                format: binary
+
+  /archivos/temp/limpiar:
+    delete:
+      tags: [Archivos]
+      summary: Limpiar archivos temporales
+      description: Elimina todos los archivos temporales del sistema.
+      responses:
+        '200':
+          description: Archivos temporales eliminados exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mensaje:
+                    type: string
+                    example: "Archivos temporales eliminados"
+                  eliminados:
+                    type: integer
+                    example: 15
+
+  # --- Listados ---
+  /listados/cargar:
+    post:
+      tags: [Listados]
+      summary: Cargar listado desde archivo
+      description: Procesa y carga un listado desde un archivo Excel o CSV.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                archivo:
+                  type: string
+                  format: binary
+                  description: Archivo Excel o CSV con el listado
+              required:
+                - archivo
+      responses:
+        '201':
+          description: Listado cargado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListadoCargado'
+
+  /listados/datos:
+    get:
+      tags: [Listados]
+      summary: Obtener datos de listados
+      description: Recupera los datos procesados de los listados cargados.
+      responses:
+        '200':
+          description: Datos de listados obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatosListado'
+
+  /listados/csv:
+    get:
+      tags: [Listados]
+      summary: Exportar listado como CSV
+      description: Exporta los datos del listado en formato CSV.
+      responses:
+        '200':
+          description: CSV exportado exitosamente
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+
+  # --- Firmas ---
+  /firmas/lista:
+    get:
+      tags: [Firmas]
+      summary: Listar firmas disponibles
+      description: Obtiene todas las firmas digitales registradas en el sistema.
+      responses:
+        '200':
+          description: Lista de firmas obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  firmas:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Firma'
+
+  /firmas/{uuid}:
+    get:
+      tags: [Firmas]
+      summary: Obtener firma por UUID
+      description: Recupera una firma específica mediante su UUID.
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID único de la firma
+      responses:
+        '200':
+          description: Firma encontrada
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/svg+xml:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /firmas/subir:
+    post:
+      tags: [Firmas]
+      summary: Subir nueva firma
+      description: Sube una nueva firma digital al sistema.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                archivo:
+                  type: string
+                  format: binary
+                  description: Archivo de imagen con la firma
+              required:
+                - archivo
+      responses:
+        '201':
+          description: Firma subida exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirmaSubida'
+
+  # --- Inteligencia Artificial ---
+  /ai/extraer:
+    post:
+      tags: [Inteligencia Artificial]
+      summary: Extraer datos de documento con IA
+      description: Utiliza OCR e IA para extraer información estructurada de documentos.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                documento:
+                  type: string
+                  format: binary
+                  description: Documento para procesar (máximo 50MB)
+              required:
+                - documento
+      responses:
+        '200':
+          description: Datos extraídos exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatosExtraidos'
+        '413':
+          description: Documento demasiado grande
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    # Esquemas del Sistema
+    SystemInfo:
+      type: object
+      properties:
+        version:
+          type: string
+          example: "2.0"
+        api_version:
+          type: string
+          example: "v2"
+        nombre:
+          type: string
+          example: "RUND API v2"
+        descripcion:
+          type: string
+        autor:
+          type: string
+        email:
+          type: string
+          format: email
+        arquitectura:
+          type: string
+        endpoints:
+          type: object
+          additionalProperties:
+            type: string
+
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        uptime:
+          type: string
+        services:
+          type: object
+          properties:
+            database:
+              type: string
+            storage:
+              type: string
+            ai:
+              type: string
+
+    Capabilities:
+      type: object
+      properties:
+        version:
+          type: string
+        features:
+          type: object
+        limits:
+          type: object
+
+    MigrationStatus:
+      type: object
+      properties:
+        migration:
+          type: object
+          properties:
+            from:
+              type: string
+            to:
+              type: string
+            status:
+              type: string
+            completed_endpoints:
+              type: array
+              items:
+                type: string
+            pending_endpoints:
+              type: array
+              items:
+                type: string
+        statistics:
+          type: object
+          properties:
+            total_endpoints:
+              type: integer
+            migrated:
+              type: integer
+            pending:
+              type: integer
+            progress:
+              type: string
+
+    DeprecationStatus:
+      type: object
+      properties:
+        v1_endpoints:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [deprecated]
+            sunset_date:
+              type: string
+              format: date
+            total_deprecated:
+              type: integer
+            migration_guide:
+              type: string
+            deprecated_endpoints:
+              type: array
+              items:
+                type: object
+                properties:
+                  v1_endpoint:
+                    type: string
+                  v2_successor:
+                    type: string
+                  status:
+                    type: string
+        migration_info:
+          type: object
+          properties:
+            progress:
+              type: string
+            completed_migrations:
+              type: integer
+            pending_migrations:
+              type: integer
+            benefits:
+              type: array
+              items:
+                type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+
+    # Esquemas de Categorías
+    Categoria:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/Categoria'
+
+    CruceCategoria:
+      type: object
+      properties:
+        x:
+          $ref: '#/components/schemas/Categoria'
+        y:
+          $ref: '#/components/schemas/Categoria'
+        interseccion:
+          type: array
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+
+    # Esquemas de Profesores
+    Profesor:
+      type: object
+      properties:
+        cedula:
+          type: string
+        nombre:
+          type: string
+        email:
+          type: string
+          format: email
+        telefono:
+          type: string
+        cargo:
+          type: string
+        vinculacion:
+          type: string
+
+    Demografia:
+      type: object
+      properties:
+        edad:
+          type: integer
+        genero:
+          type: string
+        departamento:
+          type: string
+        municipio:
+          type: string
+        zona:
+          type: string
+
+    # Esquemas de Archivos
+    Archivo:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        tipo:
+          type: string
+        tamaño:
+          type: integer
+        fecha_creacion:
+          type: string
+          format: date-time
+        url:
+          type: string
+
+    ArchivoSubido:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        mensaje:
+          type: string
+        url:
+          type: string
+
+    DatosArchivo:
+      type: object
+      properties:
+        nombre:
+          type: string
+        tipo:
+          type: string
+        tamaño:
+          type: integer
+        metadata:
+          type: object
+
+    # Esquemas de Certificados
+    Certificado:
+      type: object
+      properties:
+        id:
+          type: string
+        plantilla:
+          type: string
+        datos:
+          type: object
+        fecha_generacion:
+          type: string
+          format: date-time
+        estado:
+          type: string
+
+    Plantilla:
+      type: object
+      properties:
+        id:
+          type: string
+        nombre:
+          type: string
+        descripcion:
+          type: string
+        campos:
+          type: array
+          items:
+            type: string
+
+    GenerarCertificadoRequest:
+      type: object
+      properties:
+        plantilla:
+          type: string
+        datos:
+          type: object
+        formato:
+          type: string
+          enum: [docx, pdf]
+      required:
+        - plantilla
+        - datos
+
+    CertificadoGenerado:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+        formato:
+          type: string
+        mensaje:
+          type: string
+
+    # Esquemas de Documentos
+    PlantillaDocumento:
+      type: object
+      properties:
+        id:
+          type: string
+        nombre:
+          type: string
+        tipo:
+          type: string
+        estructura:
+          type: array
+
+    GenerarDocumentoRequest:
+      type: object
+      properties:
+        plantilla:
+          type: string
+        datos:
+          type: object
+      required:
+        - plantilla
+        - datos
+
+    DocumentoGenerado:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+        mensaje:
+          type: string
+
+    ExportarDocumentoRequest:
+      type: object
+      properties:
+        documento_id:
+          type: string
+        formato:
+          type: string
+          enum: [pdf, docx]
+      required:
+        - documento_id
+        - formato
+
+    # Esquemas de Listados
+    ListadoCargado:
+      type: object
+      properties:
+        id:
+          type: string
+        nombre:
+          type: string
+        filas:
+          type: integer
+        columnas:
+          type: integer
+        mensaje:
+          type: string
+
+    DatosListado:
+      type: object
+      properties:
+        datos:
+          type: array
+        columnas:
+          type: array
+          items:
+            type: string
+        total_filas:
+          type: integer
+
+    # Esquemas de Firmas
+    Firma:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        tipo:
+          type: string
+        url:
+          type: string
+        fecha_creacion:
+          type: string
+          format: date-time
+
+    FirmaSubida:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        mensaje:
+          type: string
+        url:
+          type: string
+
+    # Esquemas de IA
+    DatosExtraidos:
+      type: object
+      properties:
+        texto:
+          type: string
+        campos:
+          type: object
+        confianza:
+          type: number
+          format: float
+        procesamiento_tiempo:
+          type: number
+          format: float
+
+    # Esquemas comunes
+    ResponseMetadata:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        request_id:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        mensaje:
+          type: string
+        codigo:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - error
+        - mensaje
+
+  responses:
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "not_found"
+            mensaje: "El recurso solicitado no fue encontrado"
+            codigo: 404
+
+    BadRequest:
+      description: Solicitud incorrecta
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "bad_request"
+            mensaje: "Los datos proporcionados no son válidos"
+            codigo: 400
+
+    ServerError:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "server_error"
+            mensaje: "Ha ocurrido un error interno del servidor"
+            codigo: 500
+
+tags:
+  - name: Sistema
+    description: Endpoints de información y monitoreo del sistema
+  - name: Certificados
+    description: Gestión de certificados y plantillas
+  - name: Categorías
+    description: Manejo de categorías jerárquicas
+  - name: Profesores
+    description: Información de profesores y docentes
+  - name: Documentos
+    description: Generación y exportación de documentos
+  - name: Archivos
+    description: Gestión de archivos y almacenamiento
+  - name: Listados
+    description: Procesamiento de listados Excel/CSV
+  - name: Firmas
+    description: Gestión de firmas digitales
+  - name: Inteligencia Artificial
+    description: Extracción de datos con IA y OCR
+
+externalDocs:
+  description: Documentación del proyecto RUND
+  url: https://github.com/esap-co/rund
