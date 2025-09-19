@@ -20,6 +20,7 @@ use RUND\Handlers\FileHandlers;
 use RUND\Handlers\DataHandlers;
 use RUND\Core\OpenKM;
 use RUND\Config\Config;
+use RUND\Utils\Utils;
 
 class ArchivosController extends BaseController
 {
@@ -119,9 +120,14 @@ class ArchivosController extends BaseController
     }
 
     /**
-     * GET /api/v2/archivos/imagenes/{nombre}
-     * GET /img/{nombre} (alias corto)
+     * GET /api/v2/archivos/imagenes/{nombre}?ruta=opcional
+     * GET /img/{nombre}?ruta=opcional (alias corto)
      * Sirve una imagen directamente desde OpenKM
+     *
+     * Lógica de negocio:
+     * 1. Si es imagen de configuración (logos, íconos, fondos): automática en CONFIG/IMG
+     * 2. Si tiene parámetro 'ruta': usar esa ruta específica bajo DOCUMENTOS/
+     * 3. Las firmas deben usar el controlador FirmasController específico
      */
     public function getImagen(array $params = []): ?array
     {
@@ -130,17 +136,122 @@ class ArchivosController extends BaseController
         }
 
         $nombre = $params['nombre'];
+        $queryParams = $this->getQueryParams();
+        $rutaEspecifica = $queryParams['ruta'] ?? null;
 
-        // Para imágenes del sistema, usar la ruta de plantillas
-        $queryParams = [
-            'nombre' => $nombre,
-            'ruta' => 'plantillas/certificados' // Ruta estándar para imágenes del sistema
+        // Categoría 1: Imágenes de configuración (automática)
+        if ($this->esImagenConfiguracion($nombre)) {
+            return $this->fileResponse(function() use ($nombre) {
+                $rutaCompleta = Config::ROOT_TAX_CONF . 'IMG/';
+                OpenKM::getImageFile($nombre, $rutaCompleta);
+            });
+        }
+
+        // Categoría 2: Imágenes específicas (frontend debe indicar ruta)
+        if ($rutaEspecifica) {
+            return $this->fileResponse(function() use ($nombre, $rutaEspecifica) {
+                // Usar la ruta proporcionada por el frontend bajo DOCUMENTOS/
+                $rutaCompleta = Config::ROOT_TAX_DOCS . strtoupper(str_replace(' ', '_', $rutaEspecifica)) . '/';
+                OpenKM::getImageFile($nombre, $rutaCompleta);
+            });
+        }
+
+        // Categoría 3: Firmas requieren controlador específico
+        if ($this->esFirma($nombre)) {
+            return $this->errorResponse('Las firmas deben usar /api/v2/firmas/{uuid} - contacte al administrador', 400);
+        }
+
+        // Casos legacy con rutas conocidas (mantener compatibilidad)
+        $rutaLegacy = $this->obtenerRutaLegacy($nombre);
+        if ($rutaLegacy) {
+            return $this->fileResponse(function() use ($nombre, $rutaLegacy) {
+                $rutaCompleta = Config::ROOT_TAX_DOCS . $rutaLegacy . '/';
+                OpenKM::getImageFile($nombre, $rutaCompleta);
+            });
+        }
+
+        // Si no se encuentra, sugerir el uso correcto
+        return $this->errorResponse(
+            "Imagen no encontrada. Para imágenes específicas use: ?ruta=RUTA_ESPECIFICA. Para firmas use: /api/v2/firmas/",
+            404
+        );
+    }
+
+    /**
+     * Determina si una imagen es de configuración (logos, íconos, fondos)
+     * Estas siempre están en CONFIG/IMG y no requieren ruta del frontend
+     */
+    private function esImagenConfiguracion(string $nombre): bool
+    {
+        // Patrones específicos para imágenes de configuración
+        $patronesConfig = [
+            '/^logo/i',           // logoESAP.svg, logo_esap.png, etc.
+            '/^icon/i',           // iconos diversos
+            '/^fondo/i',          // fondos de página
+            '/^textura/i',        // texturas
+            '/^header/i',         // elementos de header
+            '/^footer/i',         // elementos de footer
+            '/^esap/i'            // archivos específicos de ESAP
         ];
 
-        return $this->fileResponse(function() use ($queryParams) {
-            DataHandlers::getImagen($queryParams);
-        });
+        // Archivos específicos conocidos de configuración
+        $archivosConfig = [
+            'logoESAP.svg',
+            'logo_esap.png',
+            'esap_logo.png',
+            'favicon.ico'
+        ];
+
+        // Verificar archivos específicos primero
+        if (in_array($nombre, $archivosConfig)) {
+            return true;
+        }
+
+        // Verificar patrones
+        foreach ($patronesConfig as $patron) {
+            if (preg_match($patron, $nombre)) {
+                return true;
+            }
+        }
+
+        return false;
     }
+
+    /**
+     * Determina si una imagen es una firma
+     * Las firmas deben manejarse por el controlador específico de firmas
+     */
+    private function esFirma(string $nombre): bool
+    {
+        $patronesFirmas = [
+            '/^firma_/i',
+            '/^signature/i',
+            '/firmas?\//i'
+        ];
+
+        foreach ($patronesFirmas as $patron) {
+            if (preg_match($patron, $nombre)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Obtiene rutas legacy para mantener compatibilidad con imágenes existentes
+     * Este mapeo se mantendrá solo para archivos ya existentes
+     */
+    private function obtenerRutaLegacy(string $nombre): ?string
+    {
+        $mapeoLegacy = [
+            'base.jpg' => 'PLANTILLAS/CERTIFICADOS',
+            // Agregar otros archivos legacy según sea necesario
+        ];
+
+        return $mapeoLegacy[$nombre] ?? null;
+    }
+
 
     /**
      * DELETE /api/v2/archivos/temp/limpiar
@@ -157,5 +268,34 @@ class ArchivosController extends BaseController
                 'version' => '2.0'
             ]
         ]);
+    }
+
+    /**
+     * DELETE /api/v2/archivos/papelera
+     * Vacía completamente la papelera de OpenKM
+     */
+    public function vaciarPapelera(array $params = []): array
+    {
+        try {
+            // Llamar al método que ya existe en OpenKM
+            $result = OpenKM::borraPapelera();
+
+            return $this->successResponse([
+                'resultado' => $result,
+                'mensaje' => 'Papelera de OpenKM vaciada exitosamente',
+                'meta' => [
+                    'operacion' => 'vaciar_papelera',
+                    'sistema' => 'OpenKM',
+                    'version' => '2.0',
+                    'timestamp' => date('c')
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return $this->errorResponse(
+                'Error al vaciar la papelera: ' . $e->getMessage(),
+                500
+            );
+        }
     }
 }

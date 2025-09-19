@@ -63,7 +63,30 @@ class FirmasController extends BaseController
             return $this->errorResponse('Archivo de firma requerido');
         }
 
-        // Por ahora endpoint en construcción
-        return $this->errorResponse('Endpoint en construcción - usar /api/v1/postFile por ahora', 501);
+        // Validar que tenga los datos necesarios para la firma
+        $requiredFields = ['accion'];
+        $missing = [];
+        foreach ($requiredFields as $field) {
+            if (!isset($postData[$field]) || empty($postData[$field])) {
+                $missing[] = $field;
+            }
+        }
+
+        if (!empty($missing)) {
+            return $this->errorResponse('Parámetros requeridos faltantes: ' . implode(', ', $missing), 400);
+        }
+
+        // Usar el mismo handler que v1 para mantener compatibilidad
+        $result = \RUND\Handlers\FileHandlers::postFile($postData, $files);
+
+        return $this->successResponse([
+            'resultado' => $result,
+            'mensaje' => 'Firma subida exitosamente',
+            'meta' => [
+                'endpoint' => 'v2',
+                'tipo' => 'firma',
+                'version' => '2.0'
+            ]
+        ]);
     }
 }

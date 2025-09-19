@@ -20,79 +20,100 @@ use RUND\Handlers\DataHandlers;
 
 class ListadosController extends BaseController
 {
-    /**
-     * POST /api/v2/listados/cargar
-     * POST /upload/listados (alias)
-     * Carga y procesa un listado Excel/CSV
-     */
-    public function cargar(array $params = []): array
-    {
-        $method = $_SERVER['REQUEST_METHOD'];
-        $data = $method === 'GET' ? $this->getQueryParams() : $this->getPostData();
-        $files = $this->getFiles();
+	/**
+	 * POST /api/v2/listados/cargar
+	 * POST /upload/listados (alias)
+	 * Carga y procesa un listado Excel/CSV
+	 */
+	public function cargar(array $params = []): array
+	{
+		$method = $_SERVER['REQUEST_METHOD'];
+		$data = $method === 'GET' ? $this->getQueryParams() : $this->getPostData();
+		$files = $this->getFiles();
 
-        if (!$data) {
-            return $this->errorResponse('Datos requeridos');
-        }
+		if (!$data) {
+			return $this->errorResponse('Datos requeridos');
+		}
 
-        $validation = $this->validateRequired($data, ['accion', 'propiedades']);
-        if (!empty($validation)) {
-            return $validation;
-        }
+		$validation = $this->validateRequired($data, ['accion', 'propiedades']);
+		if (!empty($validation)) {
+			return $validation;
+		}
 
-        $result = FileHandlers::loadList($method, $data, $files);
+		$result = FileHandlers::loadList($method, $data, $files);
 
-        return $this->successResponse([
-            'listado' => $result,
-            'meta' => [
-                'accion' => $data['accion'],
-                'archivo' => $files['archivo']['name'] ?? null,
-                'metodo' => $method,
-                'version' => '2.0'
-            ]
-        ]);
-    }
+		return $this->successResponse([
+			'listado' => $result,
+			'meta' => [
+				'accion' => $data['accion'],
+				'archivo' => $files['archivo']['name'] ?? null,
+				'metodo' => $method,
+				'version' => '2.0'
+			]
+		]);
+	}
 
-    /**
-     * GET /api/v2/listados/datos
-     * Obtiene datos de listados procesados
-     */
-    public function getDatos(array $params = []): array
-    {
-        $queryParams = $this->getQueryParams();
+	/**
+	 * GET /api/v2/listados/datos
+	 * Obtiene datos de listados procesados o verifica duplicados
+	 */
+	public function getDatos(array $params = []): array
+	{
+		$queryParams = $this->getQueryParams();
 
-        // Reutilizar lógica existente
-        $result = DataHandlers::getCsvData($queryParams);
+		// Verificar si es una consulta CSV (con parámetros específicos) o acción con propiedades
+		if (isset($queryParams['accion']) && isset($queryParams['propiedades'])) {
+			// Procesar acción con propiedades (ej: duplicado)
+			$validation = $this->validateRequired($queryParams, ['accion', 'propiedades']);
+			if (!empty($validation)) {
+				return $validation;
+			}
 
-        return $this->successResponse([
-            'datos' => $result,
-            'parametros' => $queryParams,
-            'meta' => [
-                'tipo' => 'datos_listado',
-                'version' => '2.0'
-            ]
-        ]);
-    }
+			$result = FileHandlers::loadList('GET', $queryParams, []);
 
-    /**
-     * GET /api/v2/listados/csv
-     * Obtiene datos CSV específicos
-     */
-    public function getCsv(array $params = []): array
-    {
-        $queryParams = $this->getQueryParams();
+			return $this->successResponse([
+				'datos' => $result,
+				'parametros' => $queryParams,
+				'meta' => [
+					'tipo' => 'accion_listado',
+					'accion' => $queryParams['accion'],
+					'version' => '2.0'
+				]
+			]);
+		} else {
+			// Consulta CSV tradicional
+			$result = DataHandlers::getCsvData($queryParams);
 
-        $csvData = DataHandlers::getCsvData($queryParams);
+			return $this->successResponse([
+				'datos' => $result,
+				'parametros' => $queryParams,
+				'meta' => [
+					'tipo' => 'datos_csv',
+					'version' => '2.0'
+				]
+			]);
+		}
+	}
 
-        return $this->successResponse([
-            'csv' => $csvData,
-            'parametros' => $queryParams,
-            'meta' => [
-                'formato' => 'csv',
-                'filas' => count($csvData['arrayCSV'] ?? []),
-                'columnas' => count($csvData['columnasCSV'] ?? []),
-                'version' => '2.0'
-            ]
-        ]);
-    }
+	/**
+	 * GET /api/v2/listados/csv
+	 * Obtiene datos CSV específicos
+	 */
+	public function getCsv(array $params = []): array
+	{
+		$queryParams = $this->getQueryParams();
+
+		$csvData = DataHandlers::getCsvData($queryParams);
+
+		return $this->successResponse([
+			'csv' => $csvData,
+			'parametros' => $queryParams,
+			'meta' => [
+				'formato' => 'csv',
+				'filas' => count($csvData['arrayCSV'] ?? []),
+				'columnas' => count($csvData['columnasCSV'] ?? []),
+				'version' => '2.0'
+			]
+		]);
+	}
 }

@@ -52,19 +52,22 @@ class CategoriasHandlers
    */
   public static function getCruce(string $x, string $y): array // Cruza categorías y devuelve una matriz de dos dimensiones
   {
-    if (!isset($_GET['x']) || !isset($_GET['y'])) {
+    // Validar que los parámetros no estén vacíos
+    if (empty($x) || empty($y)) {
       return ["error" => "Faltan parámetros para getCruce"];
     }
-    $subCatX = OpenKM::getUUIDHijos($x);
-    $subCatY = OpenKM::getUUIDHijos($y);
+    // Obtener los hijos completos, no solo UUIDs
+    $subCatX = self::getHijosCompletos($x);
+    $subCatY = self::getHijosCompletos($y);
     $filas = [];
     $allDocsX = [];
     foreach ($subCatX as $catX) $allDocsX[] = CategoriasService::getDocsFromCat($catX["uuid"]);
-    foreach ($subCatY as $catY) {
+    foreach ($subCatY as $numCatY => $catY) {
       $docsY = CategoriasService::getDocsFromCat($catY["uuid"]);
       $intData = [];
-      foreach ($allDocsX as $docsX) {
-        $intData[] = count(Utils::getCoincidencias($docsX, $docsY));
+      foreach ($allDocsX as $numDocX => $docsX) {
+        $coincidencias = $docsX !== [null] && $docsY !== [null] ? Utils::getCoincidencias($docsX, $docsY) : [];
+        $intData[] = count($coincidencias);
       }
       $fila = ["label" => $catY["label"], "data" => $intData];
       $filas[] = $fila;
@@ -72,9 +75,38 @@ class CategoriasHandlers
     $data = [
       "nomCol" => OpenKM::getPathGeneraLabel($x),
       "nomFil" => OpenKM::getPathGeneraLabel($y),
-      "cols" => array_map("getLabels", $subCatX),
+      "cols" => array_map([Utils::class, 'getLabels'], $subCatX),
       "filas" => $filas
     ];
     return $data;
+  }
+
+  /**
+   * Obtiene los hijos completos (con uuid, label, path) de una categoría
+   * @param string $padreUUID UUID de la categoría padre
+   * @return array Array de objetos completos de categorías hijas
+   */
+  private static function getHijosCompletos(string $padreUUID): array
+  {
+    $nomCats = OpenKM::getDataFile("labels");
+    $hijos = json_decode(OpenKM::consulta("folder/getChildren?fldId=$padreUUID"), true)["folder"];
+
+    if (!Utils::esArraySimple($hijos)) {
+      $hijos = [$hijos];
+    }
+
+    $hijosCompletos = [];
+    foreach ($hijos as $hijo) {
+      $pathParts = explode("/", $hijo["path"]);
+      $lastPart = array_pop($pathParts);
+
+      $hijosCompletos[] = [
+        "uuid" => $hijo["uuid"],
+        "label" => $nomCats[$lastPart] ?? $lastPart,
+        "path" => $hijo["path"]
+      ];
+    }
+
+    return $hijosCompletos;
   }
 }

@@ -15,21 +15,21 @@ declare(strict_types=1);
 
 use RUND\Core\Router;
 use RUND\Controllers\V2\{
-    SystemController,
-    CertificadosController,
-    CategoriasController,
-    ProfesoresController,
-    DocumentosController,
-    ArchivosController,
-    ListadosController,
-    FirmasController,
-    AIController
+	SystemController,
+	CertificadosController,
+	CategoriasController,
+	ProfesoresController,
+	DocumentosController,
+	ArchivosController,
+	ListadosController,
+	FirmasController,
+	AIController
 };
 use RUND\Controllers\V2\SystemController as V2SystemController;
 use RUND\Middleware\{
-    CorsMiddleware,
-    ValidationMiddleware,
-    AuthMiddleware
+	CorsMiddleware,
+	ValidationMiddleware,
+	AuthMiddleware
 };
 
 /**
@@ -37,91 +37,91 @@ use RUND\Middleware\{
  */
 function setupRoutesV2(Router $router): void
 {
-    // Grupo v2 - Nueva API RESTful
-    $router->group('/api/v2', function(Router $router) {
+	// Grupo v2 - Nueva API RESTful
+	$router->group('/api/v2', function (Router $router) {
 
-        // --- Sistema ---
-        $router->group('/system', function(Router $router) {
-            $router->get('/info', [SystemController::class, 'getInfo']);
-            $router->get('/health', [SystemController::class, 'getHealth']);
-            $router->get('/capabilities', [SystemController::class, 'getCapabilities']);
-            $router->get('/migration', [SystemController::class, 'getMigrationStatus']);
-            $router->get('/deprecation', [SystemController::class, 'getDeprecationStatus']);
-            $router->get('/docs', [SystemController::class, 'getDocs']);
-        });
+		// --- Sistema ---
+		$router->group('/system', function (Router $router) {
+			$router->get('/info', [SystemController::class, 'getInfo']);
+			$router->get('/health', [SystemController::class, 'getHealth']);
+			$router->get('/capabilities', [SystemController::class, 'getCapabilities']);
+			$router->get('/migration', [SystemController::class, 'getMigrationStatus']);
+			$router->get('/deprecation', [SystemController::class, 'getDeprecationStatus']);
+			$router->get('/docs', [SystemController::class, 'getDocs']);
+			$router->get('/swagger-ui', [SystemController::class, 'getSwaggerUI']);
+		});
 
-        // --- Certificados ---
-        $router->group('/certificados', function(Router $router) {
-            $router->get('/{id}', [CertificadosController::class, 'show']);
-            $router->post('/generar', [CertificadosController::class, 'generar']);
-            $router->get('/plantillas', [CertificadosController::class, 'getPlantillas']);
-        });
+		// --- Certificados ---
+		$router->group('/certificados', function (Router $router) {
+			$router->get('/{id}', [CertificadosController::class, 'show']);
+			$router->post('/generar', [CertificadosController::class, 'generar']);
+			$router->get('/plantillas', [CertificadosController::class, 'getPlantillas']);
+		});
 
-        // --- Categorías ---
-        $router->group('/categorias', function(Router $router) {
-            $router->get('/arbol', [CategoriasController::class, 'getArbol']);
-            $router->get('/cruce/{x}/{y}', [CategoriasController::class, 'getCruce']);
-        });
+		// --- Categorías ---
+		$router->group('/categorias', function (Router $router) {
+			$router->get('/arbol', [CategoriasController::class, 'getArbol']);
+			$router->get('/cruce/{x}/{y}', [CategoriasController::class, 'getCruce']);
+		});
 
-        // --- Profesores ---
-        $router->group('/profesores', function(Router $router) {
-            $router->get('/{cedula}', [ProfesoresController::class, 'show']);
-            $router->get('/{cedula}/archivos', [ProfesoresController::class, 'getArchivos']);
-            $router->get('/{cedula}/demografia', [ProfesoresController::class, 'getDemografia']);
-        });
+		// --- Profesores ---
+		$router->group('/profesores', function (Router $router) {
+			$router->get('/{cedula}', [ProfesoresController::class, 'show']);
+			$router->get('/{cedula}/archivos', [ProfesoresController::class, 'getArchivos']);
+			$router->get('/{cedula}/demografia', [ProfesoresController::class, 'getDemografia']);
+		});
 
-        // --- Documentos ---
-        $router->group('/documentos', function(Router $router) {
-            $router->get('/plantillas', [DocumentosController::class, 'getPlantillas']);
-            $router->post('/generar', [DocumentosController::class, 'generar']);
-            $router->post('/exportar', [DocumentosController::class, 'exportar']);
-        });
+		// --- Documentos ---
+		$router->group('/documentos', function (Router $router) {
+			$router->get('/plantillas', [DocumentosController::class, 'getPlantillas']);
+			$router->post('/generar', [DocumentosController::class, 'generar']);
+			$router->post('/exportar', [DocumentosController::class, 'exportar']);
+		});
 
-        // --- Archivos ---
-        $router->group('/archivos', function(Router $router) {
-            $router->post('/subir', [ArchivosController::class, 'subir'], [
-                ValidationMiddleware::requireFiles(['archivo'])
-            ]);
-            // Rutas específicas DEBEN ir antes de las rutas con parámetros genéricos
-            $router->get('/datos/{nombre}', [ArchivosController::class, 'getDatos']);
-            $router->get('/imagenes/{nombre}', [ArchivosController::class, 'getImagen']);
-            $router->delete('/temp/limpiar', [ArchivosController::class, 'limpiarTemp']);
-            // Rutas genéricas van al final
-            $router->get('/{uuid}', [ArchivosController::class, 'show']);
-            $router->delete('/{uuid}', [ArchivosController::class, 'delete']);
-        });
+		// --- Archivos ---
+		$router->group('/archivos', function (Router $router) {
+			$router->post('/subir', [ArchivosController::class, 'subir'], [
+				ValidationMiddleware::requireFiles(['archivo'])
+			]);
+			// Rutas específicas DEBEN ir antes de las rutas con parámetros genéricos
+			$router->get('/datos/{nombre}', [ArchivosController::class, 'getDatos']);
+			$router->get('/imagenes/{nombre}', [ArchivosController::class, 'getImagen']);
+			$router->delete('/temp/limpiar', [ArchivosController::class, 'limpiarTemp']);
+			$router->delete('/papelera', [ArchivosController::class, 'vaciarPapelera']);
+			// Rutas genéricas van al final
+			$router->get('/{uuid}', [ArchivosController::class, 'show']);
+			$router->delete('/{uuid}', [ArchivosController::class, 'delete']);
+		});
 
-        // --- Listados ---
-        $router->group('/listados', function(Router $router) {
-            $router->post('/cargar', [ListadosController::class, 'cargar'], [
-                ValidationMiddleware::requireFiles(['archivo'])
-            ]);
-            $router->get('/datos', [ListadosController::class, 'getDatos']);
-            $router->get('/csv', [ListadosController::class, 'getCsv']);
-        });
+		// --- Listados ---
+		$router->group('/listados', function (Router $router) {
+			$router->post('/cargar', [ListadosController::class, 'cargar'], [
+				ValidationMiddleware::requireFiles(['archivo'])
+			]);
+			$router->get('/datos', [ListadosController::class, 'getDatos']);
+			$router->get('/csv', [ListadosController::class, 'getCsv']);
+		});
 
-        // --- Firmas ---
-        $router->group('/firmas', function(Router $router) {
-            $router->get('/lista', [FirmasController::class, 'getLista']);
-            $router->get('/{uuid}', [FirmasController::class, 'show']);
-            $router->post('/subir', [FirmasController::class, 'subir'], [
-                ValidationMiddleware::requireFiles(['archivo'])
-            ]);
-        });
+		// --- Firmas ---
+		$router->group('/firmas', function (Router $router) {
+			$router->get('/lista', [FirmasController::class, 'getLista']);
+			$router->get('/{uuid}', [FirmasController::class, 'show']);
+			$router->post('/subir', [FirmasController::class, 'subir'], [
+				ValidationMiddleware::requireFiles(['archivo'])
+			]);
+		});
 
-        // --- Inteligencia Artificial ---
-        $router->group('/ai', function(Router $router) {
-            $router->post('/extraer', [AIController::class, 'extraer'], [
-                ValidationMiddleware::requireFiles(['documento']),
-                ValidationMiddleware::validateFileSize(50 * 1024 * 1024) // 50MB max
-            ]);
-        });
+		// --- Inteligencia Artificial ---
+		$router->group('/ai', function (Router $router) {
+			$router->post('/extraer', [AIController::class, 'extraer'], [
+				ValidationMiddleware::requireFiles(['documento']),
+				ValidationMiddleware::validateFileSize(50 * 1024 * 1024) // 50MB max
+			]);
+		});
+	});
 
-    });
-
-    // --- URLs cortas para componentes (compatibilidad) ---
-    $router->get('/img/{nombre}', [ArchivosController::class, 'getImagen']);
-    $router->post('/upload/archivos', [ArchivosController::class, 'subir']);
-    $router->post('/upload/listados', [ListadosController::class, 'cargar']);
-
+	// --- URLs cortas para componentes (compatibilidad) ---
+	$router->get('/img/{nombre}', [ArchivosController::class, 'getImagen']);
+	$router->post('/upload/archivos', [ArchivosController::class, 'subir']);
+	$router->post('/upload/listados', [ListadosController::class, 'cargar']);
 }

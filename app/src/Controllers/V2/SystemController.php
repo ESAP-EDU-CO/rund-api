@@ -142,9 +142,9 @@ class SystemController extends BaseController
             ],
             'statistics' => [
                 'total_endpoints' => 13,
-                'migrated' => 9,
-                'pending' => 4,
-                'progress' => '69%'
+                'migrated' => 13,
+                'pending' => 0,
+                'progress' => '100%'
             ],
             'version' => '2.0'
         ]);
@@ -173,9 +173,9 @@ class SystemController extends BaseController
                 }, array_keys($deprecatedEndpoints), array_values($deprecatedEndpoints))
             ],
             'migration_info' => [
-                'progress' => '69%',
-                'completed_migrations' => 9,
-                'pending_migrations' => 4,
+                'progress' => '100%',
+                'completed_migrations' => 13,
+                'pending_migrations' => 0,
                 'benefits' => [
                     'Mejor estructura RESTful',
                     'Respuestas más consistentes',
@@ -195,100 +195,287 @@ class SystemController extends BaseController
 
     /**
      * GET /api/v2/system/docs
-     * Información de documentación de la API
+     * Especificación OpenAPI completa en formato JSON
      */
-    public function getDocs(array $params = []): array
+    public function getDocs(array $params = []): void
     {
-        return $this->successResponse([
-            'documentation' => [
-                'title' => 'RUND API v2 - Documentación',
-                'version' => '2.0',
-                'description' => 'API RESTful moderna para la gestión de documentos y certificados en RUND',
-                'migration_status' => '69% completado (9/13 endpoints)',
-                'access_info' => [
-                    'message' => 'La documentación completa está disponible. Debido a limitaciones técnicas temporales con el servidor de archivos estáticos, proporcionamos esta documentación en formato JSON.',
-                    'endpoints_documentation' => [
-                        'sistema' => [
-                            'GET /api/v2/system/info' => 'Información completa del sistema',
-                            'GET /api/v2/system/health' => 'Health check para monitoreo',
-                            'GET /api/v2/system/capabilities' => 'Capacidades disponibles',
-                            'GET /api/v2/system/migration' => 'Estado de migración v1 → v2',
-                            'GET /api/v2/system/deprecation' => 'Estado de deprecación v1'
-                        ],
-                        'certificados' => [
-                            'GET /api/v2/certificados/{id}' => 'Obtener certificado por ID',
-                            'POST /api/v2/certificados/generar' => 'Generar nuevo certificado',
-                            'GET /api/v2/certificados/plantillas' => 'Listar plantillas disponibles'
-                        ],
-                        'categorias' => [
-                            'GET /api/v2/categorias/arbol' => 'Árbol completo de categorías',
-                            'GET /api/v2/categorias/cruce/{x}/{y}' => 'Cruce entre dos categorías'
-                        ],
-                        'profesores' => [
-                            'GET /api/v2/profesores/{cedula}' => 'Información de profesor',
-                            'GET /api/v2/profesores/{cedula}/archivos' => 'Archivos del profesor',
-                            'GET /api/v2/profesores/{cedula}/demografia' => 'Información demográfica'
-                        ],
-                        'archivos' => [
-                            'POST /api/v2/archivos/subir' => 'Subir archivo (max 50MB)',
-                            'GET /api/v2/archivos/{uuid}' => 'Descargar archivo',
-                            'DELETE /api/v2/archivos/{uuid}' => 'Eliminar archivo',
-                            'GET /api/v2/archivos/datos/{nombre}' => 'Datos de archivo',
-                            'GET /api/v2/archivos/imagenes/{nombre}' => 'Obtener imagen'
-                        ],
-                        'documentos' => [
-                            'GET /api/v2/documentos/plantillas' => 'Listar plantillas',
-                            'POST /api/v2/documentos/generar' => 'Generar documento',
-                            'POST /api/v2/documentos/exportar' => 'Exportar documento'
-                        ],
-                        'listados' => [
-                            'POST /api/v2/listados/cargar' => 'Cargar listado Excel/CSV',
-                            'GET /api/v2/listados/datos' => 'Obtener datos de listados',
-                            'GET /api/v2/listados/csv' => 'Exportar como CSV'
-                        ],
-                        'firmas' => [
-                            'GET /api/v2/firmas/lista' => 'Listar firmas',
-                            'GET /api/v2/firmas/{uuid}' => 'Obtener firma',
-                            'POST /api/v2/firmas/subir' => 'Subir nueva firma'
-                        ],
-                        'ai' => [
-                            'POST /api/v2/ai/extraer' => 'Extraer datos con OCR/IA (max 50MB)'
+        header('Content-Type: application/json; charset=utf-8');
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET');
+        header('Access-Control-Allow-Headers: Content-Type');
+
+        $openapi = [
+            'openapi' => '3.0.3',
+            'info' => [
+                'title' => 'RUND API v2',
+                'description' => 'API RESTful moderna para la gestión de documentos y certificados en RUND. Migración 100% completa con fallback automático a v1.',
+                'version' => '2.0.0',
+                'contact' => [
+                    'name' => 'Oliver Castelblanco Martínez',
+                    'email' => 'oliver.castelblanco@esap.edu.co'
+                ],
+                'license' => [
+                    'name' => 'ESAP',
+                    'url' => 'https://esap.edu.co'
+                ]
+            ],
+            'servers' => [
+                [
+                    'url' => 'http://localhost:3000',
+                    'description' => 'Servidor de desarrollo'
+                ]
+            ],
+            'tags' => [
+                ['name' => 'Sistema', 'description' => 'Información del sistema y health checks'],
+                ['name' => 'Categorías', 'description' => 'Gestión de categorías académicas'],
+                ['name' => 'Certificados', 'description' => 'Generación y gestión de certificados'],
+                ['name' => 'Profesores', 'description' => 'Información de profesores'],
+                ['name' => 'Documentos', 'description' => 'Generación y exportación de documentos'],
+                ['name' => 'Archivos', 'description' => 'Gestión de archivos y imágenes'],
+                ['name' => 'Listados', 'description' => 'Carga y procesamiento de listados'],
+                ['name' => 'Firmas', 'description' => 'Gestión de firmas digitales'],
+                ['name' => 'IA', 'description' => 'Extracción de datos con IA y OCR']
+            ],
+            'paths' => [
+                '/api/v2/system/info' => [
+                    'get' => [
+                        'tags' => ['Sistema'],
+                        'summary' => 'Información del sistema',
+                        'description' => 'Obtiene información completa del sistema y endpoints disponibles',
+                        'responses' => [
+                            '200' => ['description' => 'Información del sistema obtenida exitosamente']
                         ]
                     ]
                 ],
-                'testing_examples' => [
-                    'curl http://localhost:3000/api/v2/system/info',
-                    'curl http://localhost:3000/api/v2/categorias/arbol',
-                    'curl http://localhost:3000/api/v2/system/migration',
-                    'curl http://localhost:3000/api/v2/system/deprecation'
+                '/api/v2/system/health' => [
+                    'get' => [
+                        'tags' => ['Sistema'],
+                        'summary' => 'Health check',
+                        'description' => 'Verifica el estado de salud del sistema',
+                        'responses' => [
+                            '200' => ['description' => 'Sistema funcionando correctamente']
+                        ]
+                    ]
                 ],
-                'migration_info' => [
-                    'v1_deprecation_date' => '2025-12-31',
-                    'completed_endpoints' => 9,
-                    'pending_endpoints' => 4,
-                    'benefits' => [
-                        'Estructura RESTful moderna',
-                        'Nomenclatura en español',
-                        'Respuestas más consistentes',
-                        'Mejor manejo de errores',
-                        'Headers de deprecación automáticos'
+                '/api/v2/system/swagger-ui' => [
+                    'get' => [
+                        'tags' => ['Sistema'],
+                        'summary' => 'Interfaz Swagger UI',
+                        'description' => 'Interfaz interactiva de documentación',
+                        'responses' => [
+                            '200' => ['description' => 'Interfaz Swagger UI cargada']
+                        ]
+                    ]
+                ],
+                '/api/v2/categorias/arbol' => [
+                    'get' => [
+                        'tags' => ['Categorías'],
+                        'summary' => 'Árbol de categorías',
+                        'description' => 'Obtiene el árbol completo de categorías académicas',
+                        'responses' => [
+                            '200' => ['description' => 'Árbol de categorías obtenido exitosamente']
+                        ]
+                    ]
+                ],
+                '/api/v2/categorias/cruce/{x}/{y}' => [
+                    'get' => [
+                        'tags' => ['Categorías'],
+                        'summary' => 'Cruce de categorías',
+                        'description' => 'Obtiene el cruce entre dos categorías específicas',
+                        'parameters' => [
+                            [
+                                'name' => 'x',
+                                'in' => 'path',
+                                'required' => true,
+                                'schema' => ['type' => 'string'],
+                                'description' => 'Primera categoría'
+                            ],
+                            [
+                                'name' => 'y',
+                                'in' => 'path',
+                                'required' => true,
+                                'schema' => ['type' => 'string'],
+                                'description' => 'Segunda categoría'
+                            ]
+                        ],
+                        'responses' => [
+                            '200' => ['description' => 'Cruce de categorías obtenido exitosamente']
+                        ]
+                    ]
+                ],
+                '/api/v2/certificados/{id}' => [
+                    'get' => [
+                        'tags' => ['Certificados'],
+                        'summary' => 'Obtener certificado',
+                        'description' => 'Obtiene información de un certificado específico',
+                        'parameters' => [
+                            [
+                                'name' => 'id',
+                                'in' => 'path',
+                                'required' => true,
+                                'schema' => ['type' => 'string'],
+                                'description' => 'ID del certificado'
+                            ]
+                        ],
+                        'responses' => [
+                            '200' => ['description' => 'Certificado obtenido exitosamente']
+                        ]
+                    ]
+                ],
+                '/api/v2/certificados/generar' => [
+                    'post' => [
+                        'tags' => ['Certificados'],
+                        'summary' => 'Generar certificado',
+                        'description' => 'Genera un nuevo certificado con plantilla específica',
+                        'responses' => [
+                            '200' => ['description' => 'Certificado generado exitosamente']
+                        ]
+                    ]
+                ],
+                '/api/v2/profesores/{cedula}' => [
+                    'get' => [
+                        'tags' => ['Profesores'],
+                        'summary' => 'Información de profesor',
+                        'description' => 'Obtiene información completa de un profesor',
+                        'parameters' => [
+                            [
+                                'name' => 'cedula',
+                                'in' => 'path',
+                                'required' => true,
+                                'schema' => ['type' => 'string'],
+                                'description' => 'Cédula del profesor'
+                            ]
+                        ],
+                        'responses' => [
+                            '200' => ['description' => 'Información del profesor obtenida exitosamente']
+                        ]
+                    ]
+                ],
+                '/api/v2/documentos/generar' => [
+                    'post' => [
+                        'tags' => ['Documentos'],
+                        'summary' => 'Generar documento',
+                        'description' => 'Genera un documento con plantilla específica',
+                        'responses' => [
+                            '200' => ['description' => 'Documento generado exitosamente']
+                        ]
+                    ]
+                ],
+                '/api/v2/archivos/subir' => [
+                    'post' => [
+                        'tags' => ['Archivos'],
+                        'summary' => 'Subir archivo',
+                        'description' => 'Sube un archivo al sistema (máximo 50MB)',
+                        'responses' => [
+                            '200' => ['description' => 'Archivo subido exitosamente']
+                        ]
+                    ]
+                ],
+                '/api/v2/archivos/datos/{nombre}' => [
+                    'get' => [
+                        'tags' => ['Archivos'],
+                        'summary' => 'Obtener datos de archivo',
+                        'description' => 'Obtiene datos JSON de un archivo específico',
+                        'parameters' => [
+                            [
+                                'name' => 'nombre',
+                                'in' => 'path',
+                                'required' => true,
+                                'schema' => ['type' => 'string'],
+                                'description' => 'Nombre del archivo'
+                            ]
+                        ],
+                        'responses' => [
+                            '200' => ['description' => 'Datos del archivo obtenidos exitosamente']
+                        ]
+                    ]
+                ],
+                '/api/v2/archivos/imagenes/{nombre}' => [
+                    'get' => [
+                        'tags' => ['Archivos'],
+                        'summary' => 'Obtener imagen',
+                        'description' => 'Obtiene una imagen desde OpenKM',
+                        'parameters' => [
+                            [
+                                'name' => 'nombre',
+                                'in' => 'path',
+                                'required' => true,
+                                'schema' => ['type' => 'string'],
+                                'description' => 'Nombre de la imagen'
+                            ]
+                        ],
+                        'responses' => [
+                            '200' => ['description' => 'Imagen obtenida exitosamente']
+                        ]
+                    ]
+                ],
+                '/api/v2/listados/cargar' => [
+                    'post' => [
+                        'tags' => ['Listados'],
+                        'summary' => 'Cargar listado',
+                        'description' => 'Carga un listado Excel o CSV',
+                        'responses' => [
+                            '200' => ['description' => 'Listado cargado exitosamente']
+                        ]
+                    ]
+                ],
+                '/api/v2/firmas/lista' => [
+                    'get' => [
+                        'tags' => ['Firmas'],
+                        'summary' => 'Listar firmas',
+                        'description' => 'Obtiene la lista de firmas disponibles',
+                        'responses' => [
+                            '200' => ['description' => 'Lista de firmas obtenida exitosamente']
+                        ]
+                    ]
+                ],
+                '/api/v2/ai/extraer' => [
+                    'post' => [
+                        'tags' => ['IA'],
+                        'summary' => 'Extraer datos con IA',
+                        'description' => 'Extrae datos de documentos usando OCR e IA (máximo 50MB)',
+                        'responses' => [
+                            '200' => ['description' => 'Datos extraídos exitosamente']
+                        ]
+                    ]
+                ]
+            ],
+            'components' => [
+                'schemas' => [
+                    'Error' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'error' => ['type' => 'string'],
+                            'message' => ['type' => 'string'],
+                            'codigo' => ['type' => 'integer']
+                        ]
+                    ],
+                    'Success' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'success' => ['type' => 'boolean'],
+                            'data' => ['type' => 'object']
+                        ]
                     ]
                 ]
             ]
-        ]);
+        ];
+
+        echo json_encode($openapi, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        exit;
     }
 
     /**
-     * GET /api/v2/docs
-     * Interfaz de documentación simplificada
+     * GET /api/v2/swagger-ui
+     * Interfaz Swagger UI interactiva
      */
     public function getSwaggerUI(array $params = []): void
     {
-        $htmlPath = __DIR__ . '/../../swagger/simple.html';
+        $htmlPath = '/var/www/html/static/swagger-ui.html';
 
         if (!file_exists($htmlPath)) {
             http_response_code(404);
-            echo json_encode(['error' => 'Documentación no encontrada'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['error' => 'Interfaz Swagger UI no encontrada'], JSON_UNESCAPED_UNICODE);
             return;
         }
 

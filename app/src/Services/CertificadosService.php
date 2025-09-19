@@ -17,6 +17,8 @@ namespace RUND\Services;
 use RUND\Config\Config as Config;
 use RUND\Core\OpenKM as OpenKM;
 use RUND\Core\Utils as Utils;
+use RUND\Services\QRService as QRService;
+use RUND\Services\FirmasService as FirmasService;
 
 use PhpOffice\PhpWord\TemplateProcessor as TemplateProcessor;
 use PhpOffice\PhpWord\Element\TextRun as TextRun;
@@ -38,6 +40,11 @@ class CertificadosService
     $templateProcessor = new TemplateProcessor($rutaPlantilla);
     $numParrafo = 0;
     foreach ($estructura as $bloque) {
+      // Verificar si es un bloque válido con estructura correcta
+      if (!is_array($bloque) || !isset($bloque["tipo"])) {
+        continue;
+      }
+
       if ($bloque["tipo"] == "parrafo") {
         $numParrafo++;
         $placeholder = $bloque["tipo"] . $numParrafo;

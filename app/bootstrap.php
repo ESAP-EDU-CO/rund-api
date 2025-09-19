@@ -1,4 +1,5 @@
 <?php
+
 /**
  * RUND API - Bootstrap Principal
  *
@@ -19,43 +20,43 @@ date_default_timezone_set('America/Bogota');
 
 // Cargar dependencias de Composer (PhpOffice, etc.)
 $autoloadPaths = [
-    __DIR__ . '/vendor/autoload.php',     // Desarrollo local (con vendor en app/)
-    __DIR__ . '/../vendor/autoload.php',  // Desarrollo local (con vendor en raíz)
-    '/var/www/html/vendor/autoload.php',  // Docker (ruta absoluta)
+	__DIR__ . '/vendor/autoload.php',     // Desarrollo local (con vendor en app/)
+	__DIR__ . '/../vendor/autoload.php',  // Desarrollo local (con vendor en raíz)
+	'/var/www/html/vendor/autoload.php',  // Docker (ruta absoluta)
 ];
 
 foreach ($autoloadPaths as $path) {
-    if (file_exists($path)) {
-        require_once $path;
-        break;
-    }
+	if (file_exists($path)) {
+		require_once $path;
+		break;
+	}
 }
 
 // Autoloader manual para nuestras clases RUND (siempre necesario)
 spl_autoload_register(function ($class) {
-    if (strpos($class, 'RUND\\') !== 0) {
-        return;
-    }
+	if (strpos($class, 'RUND\\') !== 0) {
+		return;
+	}
 
-    $classPath = str_replace('RUND\\', '', $class);
-    $classPath = str_replace('\\', '/', $classPath);
-    $file = __DIR__ . '/src/' . $classPath . '.php';
+	$classPath = str_replace('RUND\\', '', $class);
+	$classPath = str_replace('\\', '/', $classPath);
+	$file = __DIR__ . '/src/' . $classPath . '.php';
 
-    if (file_exists($file)) {
-        require_once $file;
-    }
+	if (file_exists($file)) {
+		require_once $file;
+	}
 });
 
 // Importar clases principales
 use RUND\Core\{Utils, OpenKM};
 use RUND\Config\Config;
 use RUND\Handlers\{
-    FileHandlers,
-    DataHandlers,
-    CategoriasHandlers,
-    CertificadosHandlers,
-    FirmasHandlers,
-    AIHandlers
+	FileHandlers,
+	DataHandlers,
+	CategoriasHandlers,
+	CertificadosHandlers,
+	FirmasHandlers,
+	AIHandlers
 };
 
 // Configurar CORS
@@ -69,94 +70,94 @@ Utils::cors();
 // --- Handlers de información ---
 function handleInfo(): array
 {
-    return [
-        "version" => "3.0",
-        "nombre" => "RUND API",
-        "descripcion" => "API moderna para la gestión de documentos y certificados en RUND",
-        "autor" => "Oliver Castelblanco Martínez",
-        "email" => "oliver.castelblanco@esap.edu.co",
-        "autoloader" => "PSR-4 via Composer",
-        "namespace" => "RUND"
-    ];
+	return [
+		"version" => "3.0",
+		"nombre" => "RUND API",
+		"descripcion" => "API moderna para la gestión de documentos y certificados en RUND",
+		"autor" => "Oliver Castelblanco Martínez",
+		"email" => "oliver.castelblanco@esap.edu.co",
+		"autoloader" => "PSR-4 via Composer",
+		"namespace" => "RUND"
+	];
 }
 
 // --- Handlers de certificados ---
 function handleGetCertificado(array $postData): void
 {
-    CertificadosHandlers::getCertificado($postData);
+	CertificadosHandlers::getCertificado($postData);
 }
 
 function handleGetCertificadoInfo(string $id): ?array
 {
-    return CertificadosHandlers::getCertificadoInfo($id);
+	return CertificadosHandlers::getCertificadoInfo($id);
 }
 
 // --- Handlers de datos ---
 function handleGetCsvData(array $params): array
 {
-    return DataHandlers::getCsvData($params);
+	return DataHandlers::getCsvData($params);
 }
 
 function handleGetImagen(array $params): void
 {
-    DataHandlers::getImagen($params);
+	DataHandlers::getImagen($params);
 }
 
 function handleGetInfoProfesor(string $cedula): array
 {
-    return DataHandlers::getInfoProfesor($cedula);
+	return DataHandlers::getInfoProfesor($cedula);
 }
 
 // --- Handlers de categorías ---
 function handleGetCategorias(): array
 {
-    return CategoriasHandlers::getCategorias();
+	return CategoriasHandlers::getCategorias();
 }
 
 function handleGetCruce(string $x, string $y): array
 {
-    return CategoriasHandlers::getCruce($x, $y);
+	return CategoriasHandlers::getCruce($x, $y);
 }
 
 // --- Handlers de firmas ---
 function handleGetFirmas(array $getParams): void
 {
-    FirmasHandlers::getFirmas($getParams);
+	FirmasHandlers::getFirmas($getParams);
 }
 
 // --- Handlers de archivos ---
 function handleDeleteReport(): array
 {
-    return FileHandlers::deleteReport();
+	return FileHandlers::deleteReport();
 }
 
 function handleLoadList(string $method, array $params, array $files): array
 {
-    return FileHandlers::loadList($method, $params, $files);
+	return FileHandlers::loadList($method, $params, $files);
 }
 
 function handlePostFile(array $params, array $files): array
 {
-    return FileHandlers::postFile($params, $files);
+	return FileHandlers::postFile($params, $files);
 }
 
 function handleGetFile(string $tipo, string $nombre): ?array
 {
-    return FileHandlers::getFile($tipo, $nombre);
+	return FileHandlers::getFile($tipo, $nombre);
 }
 
 function handleGetConsultaFile(array $postData, string $tipo, string $nombrePlantilla = "plantilla_reporte.xlsx"): void
 {
-    FileHandlers::getConsultaFile($postData, $tipo, $nombrePlantilla);
+	FileHandlers::getConsultaFile($postData, $tipo, $nombrePlantilla);
 }
 
 // --- Handlers de IA ---
 function handleExtraeDatos(array $params, array $files): array
 {
-    return AIHandlers::extraeDatos($params, $files);
+	return AIHandlers::extraeDatos($params, $files);
 }
 
 // Bootstrap completado
 if (defined('RUND_DEBUG') && constant('RUND_DEBUG')) {
-    error_log("RUND API Bootstrap v3.0 loaded successfully");
+	error_log("RUND API Bootstrap v3.0 loaded successfully");
 }

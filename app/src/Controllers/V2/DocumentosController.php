@@ -16,6 +16,7 @@ namespace RUND\Controllers\V2;
 
 use RUND\Controllers\BaseController;
 use RUND\Handlers\FileHandlers;
+use RUND\Handlers\CertificadosHandlers;
 
 class DocumentosController extends BaseController
 {
@@ -54,18 +55,56 @@ class DocumentosController extends BaseController
 
     /**
      * POST /api/v2/documentos/generar
-     * Genera un documento personalizado
+     * Genera un documento personalizado (certificados, reportes, etc.)
      */
-    public function generar(array $params = []): array
+    public function generar(array $params = []): ?array
     {
+        // Obtener datos del POST (soportar tanto JSON como form-data)
         $postData = $this->getPostData();
+
+        // Si no hay datos JSON, verificar si hay datos de formulario
+        if (!$postData && !empty($_POST)) {
+            $postData = $_POST;
+        }
 
         if (!$postData) {
             return $this->errorResponse('Datos requeridos para generar documento');
         }
 
-        // Por ahora redirigimos a la funcionalidad existente
-        return $this->errorResponse('Endpoint en construcción - usar /api/v1/getCertificado por ahora', 501);
+        // Validar que se especifique el tipo de documento
+        if (!isset($postData['tipo'])) {
+            return $this->errorResponse('Parámetro "tipo" es requerido (ej: certificado, reporte)', 400);
+        }
+
+        $tipoDocumento = $postData['tipo'];
+
+        switch ($tipoDocumento) {
+            case 'certificado':
+                return $this->fileResponse(function() use ($postData) {
+                    CertificadosHandlers::getCertificado($postData);
+                });
+
+            case 'reporte':
+            case 'consulta':
+                // Validar que tenga los datos necesarios para reportes
+                if (!isset($postData['data'])) {
+                    return $this->errorResponse('Parámetro "data" es requerido para reportes');
+                }
+
+                $data = is_string($postData['data']) ? json_decode($postData['data'], true) : $postData['data'];
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    return $this->errorResponse('Datos JSON inválidos en "data"');
+                }
+
+                $formato = $postData['formato'] ?? 'xlsx'; // Por defecto Excel
+
+                return $this->fileResponse(function() use ($data, $formato) {
+                    FileHandlers::getConsultaFile($data, $formato);
+                });
+
+            default:
+                return $this->errorResponse("Tipo de documento no soportado: {$tipoDocumento}. Tipos válidos: certificado, reporte, consulta", 400);
+        }
     }
 
     /**

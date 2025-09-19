@@ -36,7 +36,8 @@ class CertificadosHandlers
   {
     $estructura = json_decode($postData["data"], true);
     $plantilla = $postData["plantilla"];
-    $tipo = $postData["tipo"];
+    // El formato puede venir como "formato" o "tipo" (compatibilidad)
+    $formato = $postData["formato"] ?? $postData["tipo"] ?? "docx";
     // Genera un ID aleatorio para la solicitud y permitir que se pueda recuperar después, a menos que se envíe en el payload
     $nomJson = "expedidos.json";
     $uuidJSON = OpenKM::findArchivo($nomJson, Config::TAX_CERTIFICADOS);
@@ -52,7 +53,7 @@ class CertificadosHandlers
     }
     $nombrePlantilla = "$plantilla.docx";
     $phpTemplate = CertificadosService::creaCertificado($nombrePlantilla, $estructura, $postData["id"]);
-    if ($tipo == "docx") {
+    if ($formato == "docx") {
       header("Content-Description: File Transfer");
       header('Content-Disposition: attachment; filename="' . $nombrePlantilla . '"');
       header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
@@ -61,7 +62,7 @@ class CertificadosHandlers
       header('Expires: 0');
       $phpTemplate->saveAs("php://output");
       unlink(Config::TEMP_DIR . $nombrePlantilla);
-    } elseif ($tipo == "pdf") {
+    } elseif ($formato == "pdf") {
       $nombreDOCX = "certificado_" . (new \DateTime())->format("Y-m-d-H-i-s") . ".docx";
       $phpTemplate->saveAs(Config::TEMP_DIR . $nombreDOCX);
       $resp = LBService::convierteWordToPDF($nombreDOCX);
