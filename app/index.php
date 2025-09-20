@@ -1,13 +1,13 @@
 <?php
 
 /**
- * RUND API - Punto de entrada principal (Modular)
+ * RUND API v2 - Punto de entrada principal
  *
- * Sistema moderno con Router, Controllers y Middleware.
- * Completamente escalable y preparado para RUND-PTA.
+ * API RESTful moderna con estructura escalable.
+ * Migración completa v1 → v2 finalizada.
  *
  * @author ESAP Development Team / Oliver Castelblanco Martínez
- * @version 3.0
+ * @version 2.0
  * @since PHP 8.3
  */
 
@@ -16,8 +16,7 @@ declare(strict_types=1);
 // Cargar sistema moderno
 require_once __DIR__ . '/bootstrap.php';
 
-// Cargar configuración de rutas
-require_once __DIR__ . '/routes.php';
+// Cargar configuración de rutas v2
 require_once __DIR__ . '/routes_v2.php';
 
 use RUND\Core\Router;
@@ -26,10 +25,7 @@ try {
 	// Crear e inicializar el router
 	$router = new Router();
 
-	// Configurar rutas v1 (compatibilidad)
-	setupRoutes($router);
-
-	// Configurar rutas v2 (nuevas)
+	// Configurar rutas v2
 	setupRoutesV2($router);
 
 	// Procesar la solicitud
@@ -44,17 +40,8 @@ try {
 		'message' => 'Ha ocurrido un error inesperado'
 	];
 
-	// En desarrollo, mostrar detalles del error
-	if (defined('RUND_DEBUG') && constant('RUND_DEBUG')) {
-		$errorResponse['debug'] = [
-			'exception' => get_class($e),
-			'message' => $e->getMessage(),
-			'file' => $e->getFile(),
-			'line' => $e->getLine(),
-			'trace' => $e->getTraceAsString()
-		];
-		error_log("RUND API Error: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
-	}
+	// Log del error para debugging
+	error_log("RUND API Error: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
 
 	echo json_encode($errorResponse, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 }

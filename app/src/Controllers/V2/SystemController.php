@@ -113,38 +113,40 @@ class SystemController extends BaseController
      */
     public function getMigrationStatus(array $params = []): array
     {
+        $endpointsV2 = [
+            'system/info', 'system/health', 'system/capabilities', 'system/migration', 'system/deprecation',
+            'certificados/{id}', 'certificados/generar', 'certificados/plantillas',
+            'categorias/arbol', 'categorias/cruce/{x}/{y}',
+            'profesores/{cedula}', 'profesores/{cedula}/archivos', 'profesores/{cedula}/demografia',
+            'documentos/plantillas', 'documentos/generar', 'documentos/exportar',
+            'archivos/subir', 'archivos/datos/{nombre}', 'archivos/imagenes/{nombre}',
+            'archivos/{uuid}', 'archivos/temp/limpiar', 'archivos/papelera',
+            'listados/cargar', 'listados/datos', 'listados/csv',
+            'firmas/lista', 'firmas/{uuid}', 'firmas/subir',
+            'ai/extraer'
+        ];
+
         return $this->successResponse([
             'migration' => [
                 'from' => 'v1',
                 'to' => 'v2',
-                'status' => 'in_progress',
-                'completed_endpoints' => [
-                    'system/info',
-                    'system/health',
-                    'system/capabilities',
-                    'categorias/arbol',
-                    'categorias/cruce',
-                    'profesores/{cedula}',
-                    'archivos/datos',
-                    'archivos/imagenes',
-                    'certificados/{id}'
-                ],
-                'pending_endpoints' => [
-                    'listados/cargar',
-                    'firmas/lista',
-                    'ai/extraer',
-                    'documentos/exportar'
-                ],
-                'direct_urls_updated' => [
-                    '/img/{nombre}' => 'updated',
-                    '/upload/listados' => 'pending'
-                ]
+                'status' => 'completed',
+                'completion_date' => '2025-09-19',
+                'all_endpoints_migrated' => $endpointsV2,
+                'legacy_removed' => true
             ],
             'statistics' => [
-                'total_endpoints' => 13,
-                'migrated' => 13,
+                'total_endpoints' => count($endpointsV2),
+                'migrated' => count($endpointsV2),
                 'pending' => 0,
                 'progress' => '100%'
+            ],
+            'benefits_achieved' => [
+                'RESTful structure complete',
+                'Spanish nomenclature implemented',
+                'Robust validation added',
+                'Consistent error handling',
+                'Swagger documentation integrated'
             ],
             'version' => '2.0'
         ]);
@@ -156,39 +158,36 @@ class SystemController extends BaseController
      */
     public function getDeprecationStatus(array $params = []): array
     {
-        $deprecatedEndpoints = DeprecationMiddleware::getDeprecatedEndpoints();
-
         return $this->successResponse([
             'v1_endpoints' => [
-                'status' => 'deprecated',
-                'sunset_date' => '2025-12-31',
-                'total_deprecated' => count($deprecatedEndpoints),
-                'migration_guide' => '/api/v2/docs',
-                'deprecated_endpoints' => array_map(function($v1, $v2) {
-                    return [
-                        'v1_endpoint' => $v1,
-                        'v2_successor' => $v2,
-                        'status' => 'deprecated'
-                    ];
-                }, array_keys($deprecatedEndpoints), array_values($deprecatedEndpoints))
+                'status' => 'removed',
+                'removal_date' => '2025-09-19',
+                'total_deprecated' => 0,
+                'migration_guide' => '/api/v2/docs'
             ],
             'migration_info' => [
                 'progress' => '100%',
-                'completed_migrations' => 13,
+                'completed_migrations' => 27,
                 'pending_migrations' => 0,
+                'migration_complete' => true,
                 'benefits' => [
-                    'Mejor estructura RESTful',
-                    'Respuestas más consistentes',
-                    'Documentación OpenAPI completa',
+                    'Estructura RESTful completa',
+                    'Respuestas consistentes',
+                    'Documentación Swagger integrada',
                     'Nomenclatura en español',
-                    'Mejor manejo de errores'
+                    'Manejo de errores mejorado',
+                    'Validación robusta'
                 ]
             ],
+            'current_status' => [
+                'API v1' => 'REMOVIDA',
+                'API v2' => 'ACTIVA',
+                'Compatibilidad legacy' => 'NO REQUERIDA'
+            ],
             'recommendations' => [
-                'Migre a v2 lo antes posible',
-                'Los endpoints v1 serán descontinuados el 31 de diciembre de 2025',
-                'Consulte la documentación en /api/v2/docs',
-                'Use los headers de deprecación para planificar la migración'
+                'Usar exclusivamente endpoints /api/v2/*',
+                'Consultar documentación en /api/v2/docs',
+                'Usar Swagger UI en /api/v2/swagger-ui'
             ]
         ]);
     }
