@@ -1,6 +1,6 @@
 # RUND API
 
-> API backend para el sistema RUND (Repositorio Unificado Nacional de Documentos) de la ESAP
+> API backend para el sistema RUND (Registro Único Nacional Docente) de la ESAP
 
 [![PHP](https://img.shields.io/badge/PHP-8.3+-blue.svg)](https://php.net)
 [![Composer](https://img.shields.io/badge/Composer-2.0+-orange.svg)](https://getcomposer.org)
@@ -8,7 +8,7 @@
 
 ## 🚀 Descripción
 
-RUND API es el servicio backend del sistema de gestión documental de la ESAP. Proporciona una API RESTful moderna para la generación de certificados, manejo de archivos, integración con OpenKM y servicios de inteligencia artificial.
+RUND-API es el servicio backend del RUND de la ESAP. Proporciona una API RESTful moderna para la generación de certificados, manejo de archivos, integración con OpenKM y servicios de inteligencia artificial.
 
 ## 📋 Características
 
@@ -28,7 +28,7 @@ RUND API es el servicio backend del sistema de gestión documental de la ESAP. P
 | **PHP** | 8.3+ | Backend principal |
 | **Composer** | 2.0+ | Gestión de dependencias |
 | **PHPOffice** | 4.4+ | Procesamiento de documentos |
-| **DomPDF** | 3.1+ | Generación de PDFs |
+| **LibreOffice (headless)** | 25.8+ | Conversión DOCX a PDF |
 | **Endroid QR** | 6.0+ | Códigos QR |
 | **Docker** | Latest | Contenedorización |
 | **Nginx** | Latest | Servidor web |
@@ -56,7 +56,7 @@ docker compose up -d
 
 ```bash
 # Usar imagen de Docker Hub
-docker pull mundotecnologico/rund-api:latest
+docker pull ocastelblanco/rund-api:latest
 
 # O construir localmente
 docker build -t rund-api .
@@ -70,8 +70,8 @@ docker build -t rund-api .
 # OpenKM Configuration
 OPENKM_HOST=rund-core
 OPENKM_PORT=8080
-OPENKM_USER=okmAdmin
-OPENKM_PASS=admin
+OPENKM_USER=****
+OPENKM_PASS=****
 
 # AI Service
 AI_SERVICE_URL=http://rund-ai:11434
@@ -243,7 +243,7 @@ services:
 
 ```bash
 # Construir imagen
-docker build -t mundotecnologico/rund-api:v1.0.0 .
+docker build -t ocastelblanco/rund-api:v1.0.0 .
 
 # Ejecutar contenedor
 docker run -d \
