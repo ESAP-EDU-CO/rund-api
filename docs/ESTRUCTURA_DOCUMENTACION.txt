@@ -1,0 +1,300 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║          DOCUMENTACIÓN TÉCNICA RUND-API v2.0 - ESTRUCTURA COMPLETA          ║
+║                                                                              ║
+║                  ESAP - Escuela Superior de Administración Pública          ║
+║                           Generado: Octubre 2025                            ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📁 docs/
+│
+├── 📖 README.md (13 KB)
+│   └── Guía principal de la documentación con índices y navegación
+│
+├── ⭐ RESUMEN_EJECUTIVO.md (16 KB) ★ EMPIEZA AQUÍ ★
+│   ├── Visión general del proyecto
+│   ├── Estadísticas completas
+│   ├── Hallazgos principales (fortalezas y debilidades)
+│   ├── 10 vulnerabilidades identificadas
+│   ├── Recomendaciones críticas
+│   └── Roadmap de implementación (8 semanas)
+│
+├── 00_INDICE_DOCUMENTACION.md (5.2 KB)
+│   ├── Índice maestro de todos los documentos
+│   ├── Guías de navegación por rol
+│   ├── Resumen ejecutivo de estadísticas
+│   └── Enlaces útiles
+│
+├── 01_ARQUITECTURA_Y_ESTRUCTURA.md (23 KB)
+│   ├── Visión general del proyecto
+│   ├── Estructura de directorios completa (árbol)
+│   ├── Patrón arquitectónico (MVC en 4 capas)
+│   ├── Componentes principales
+│   │   ├── Router (enrutamiento moderno)
+│   │   ├── BaseController (clase base)
+│   │   ├── OpenKM Client (22+ métodos)
+│   │   ├── Utils (11 métodos)
+│   │   └── Middleware System
+│   ├── Flujo de ejecución completo
+│   ├── Sistema PSR-4 autoloading
+│   ├── Convenciones y estándares
+│   └── Diagrama de arquitectura Mermaid
+│
+├── 02_ENDPOINTS_API.md (52 KB)
+│   ├── 27 endpoints documentados completamente:
+│   │   ├── Sistema (7): info, health, capabilities, migration, etc.
+│   │   ├── Certificados (3): show, generar, plantillas
+│   │   ├── Categorías (2): árbol, cruce
+│   │   ├── Profesores (3): show, archivos, demografía
+│   │   ├── Documentos (3): plantillas, generar, exportar
+│   │   ├── Archivos (7): subir, datos, imágenes, CRUD
+│   │   ├── Listados (3): cargar, datos, csv
+│   │   ├── Firmas (3): lista, show, subir
+│   │   └── AI (1): extraer datos
+│   ├── Para CADA endpoint:
+│   │   ├── Ruta HTTP completa
+│   │   ├── Controller y método
+│   │   ├── Parámetros (path, query, body, files)
+│   │   ├── Validaciones aplicadas
+│   │   ├── Respuesta exitosa (JSON ejemplo)
+│   │   ├── Códigos de error
+│   │   ├── Ejemplo cURL funcional
+│   │   └── Handlers/Services utilizados
+│   └── Tabla resumen de todos los endpoints
+│
+├── 03_SERVICIOS_Y_HANDLERS.md (65 KB)
+│   ├── SERVICES (8 clases, 50+ métodos):
+│   │   ├── AIService (11 métodos) - IA/OCR
+│   │   ├── CategoriasService (5) - Categorías OpenKM
+│   │   ├── CertificadosService (7) - Generación certificados
+│   │   ├── DocumentService (5) - Gestión documentos
+│   │   ├── FirmasService (2) - Firmas digitales
+│   │   ├── LBService (3) - Conversión LibreOffice
+│   │   ├── QRService (6) - Códigos QR
+│   │   └── ReportesService (5) - Reportes Excel
+│   ├── HANDLERS (6 clases, 14 métodos):
+│   │   ├── AIHandlers (1) - Extracción IA
+│   │   ├── CategoriasHandlers (3) - Categorías HTTP
+│   │   ├── CertificadosHandlers (2) - Certificados HTTP
+│   │   ├── DataHandlers (3) - Datos y CSV
+│   │   ├── FileHandlers (5) - Archivos y reportes
+│   │   └── FirmasHandlers (1) - Firmas HTTP
+│   └── Para CADA método:
+│       ├── Firma completa con tipos
+│       ├── Descripción detallada
+│       ├── Parámetros y retorno
+│       ├── Dependencias externas
+│       ├── Ejemplo de uso
+│       └── Número de línea en archivo fuente
+│
+├── 04_INTEGRACION_OPENKM.md (62 KB)
+│   ├── Clase OpenKM.php completa (22+ métodos)
+│   ├── Configuración de conexión
+│   │   ├── Basic Auth (usuario/contraseña)
+│   │   ├── Timeouts (30s request, 10s connect)
+│   │   └── Opciones cURL
+│   ├── Estructura de OpenKM
+│   │   ├── Taxonomía (okm:root) vs Categorías (okm:categories)
+│   │   ├── 24 constantes de rutas en Config.php
+│   │   └── Jerarquía de carpetas
+│   ├── Operaciones CRUD
+│   │   ├── CREATE: cargaArchivo(), creaCarpetas()
+│   │   ├── READ: getArchivo(), findArchivo(), getDataFile()
+│   │   ├── UPDATE: nuevaVersion() con checkout/checkin
+│   │   └── DELETE: borraArchivo(), borraPapelera()
+│   ├── Sistema de versionado completo
+│   ├── Búsquedas y queries REST
+│   ├── Categorización de documentos
+│   ├── Manejo de errores (excepciones OpenKM)
+│   └── 5 ejemplos completos de uso
+│
+├── 05_DEPENDENCIAS_Y_LIBRERIAS.md (26 KB)
+│   ├── phpoffice/phpspreadsheet (4.5.0)
+│   │   ├── Propósito: Reportes Excel con gráficos
+│   │   ├── Usado en: ReportesService, FileHandlers
+│   │   ├── Clases principales
+│   │   └── Sub-dependencias
+│   ├── phpoffice/phpword (1.4.0)
+│   │   ├── Propósito: Certificados DOCX
+│   │   └── Usado en: CertificadosService
+│   ├── dompdf/dompdf (3.1.0)
+│   │   └── Estado: NO USADO (recomendación: eliminar)
+│   ├── endroid/qr-code (6.0.9)
+│   │   ├── Propósito: QR de validación
+│   │   └── Usado en: QRService
+│   ├── Extensiones PHP (gd, zip, intl)
+│   ├── phpunit/phpunit (10.5.55)
+│   │   └── Estado: Configurado sin tests
+│   ├── LibreOffice Headless (25.8+)
+│   │   ├── Conversión DOCX→PDF
+│   │   └── Comandos y troubleshooting
+│   ├── Instalación y configuración
+│   └── Troubleshooting común
+│
+├── 06_FLUJOS_CRITICOS.md (32 KB)
+│   ├── 1. Generación de Certificado
+│   │   ├── 16 pasos desde request hasta descarga
+│   │   ├── Diagrama de secuencia Mermaid
+│   │   ├── Procesamiento plantillas DOCX
+│   │   ├── Generación QR de validación
+│   │   ├── Conversión PDF con LibreOffice
+│   │   ├── 6 archivos temporales creados/eliminados
+│   │   └── Ejemplo payload JSON completo
+│   ├── 2. Subida de Archivo
+│   │   ├── Flujo A: Carga de Firma (PNG + JSON)
+│   │   ├── Flujo B: Carga de Documento (categorizado)
+│   │   ├── Diagramas de secuencia diferenciados
+│   │   ├── Sistema de versionado
+│   │   └── Categorización automática
+│   └── 3. Consulta Información Profesor
+│       ├── Búsqueda en OpenKM por cédula
+│       ├── Procesamiento de categorías
+│       ├── Estructuración jerárquica
+│       └── Ejemplos de transformación
+│
+├── 07_SEGURIDAD_Y_VALIDACIONES.md (51 KB)
+│   ├── Middleware de Seguridad
+│   │   ├── AuthMiddleware (placeholder - CRÍTICO)
+│   │   ├── CorsMiddleware (permisivo - CRÍTICO)
+│   │   └── ValidationMiddleware (5 métodos)
+│   ├── Validaciones de Input
+│   │   ├── BaseController::validateRequired()
+│   │   ├── Validaciones en Controllers
+│   │   └── Recomendaciones de mejora
+│   ├── Sanitización de Datos
+│   │   ├── Implementaciones actuales
+│   │   └── Qué falta implementar
+│   ├── Manejo de Archivos
+│   │   ├── Validación de uploads
+│   │   ├── Límites de tamaño (50MB)
+│   │   └── CRÍTICO: Sin validación MIME
+│   ├── Headers de Seguridad
+│   │   ├── CORS actual (permite todo)
+│   │   └── Headers ausentes
+│   ├── Protección contra Inyecciones
+│   │   ├── SQL: N/A
+│   │   ├── Command: Safe
+│   │   ├── Path Traversal: Potencial
+│   │   └── JSON: Básica
+│   ├── Autenticación/Autorización
+│   │   ├── Estado: No implementado
+│   │   └── Recomendación JWT completa
+│   ├── 10 Vulnerabilidades Identificadas
+│   │   ├── 4 CRÍTICAS
+│   │   ├── 3 ALTAS
+│   │   ├── 2 MEDIAS
+│   │   └── 1 BAJA
+│   └── Recomendaciones por Ambiente
+│       ├── Desarrollo
+│       ├── Staging
+│       └── Producción (checklist 30+ items)
+│
+├── 08_MANEJO_DE_ERRORES.md (37 KB)
+│   ├── Estrategia Global
+│   │   ├── Try-catch en index.php
+│   │   ├── handleNotFound en Router
+│   │   └── errorResponse en BaseController
+│   ├── Formato de Respuestas (6 tipos)
+│   │   ├── Error estándar
+│   │   ├── Error con detalles
+│   │   ├── Error con contexto
+│   │   ├── Error 404
+│   │   ├── Error 500
+│   │   └── Errores OpenKM
+│   ├── Códigos HTTP (9 códigos)
+│   │   └── Tabla completa con ejemplos
+│   ├── Logging
+│   │   ├── error_log en index.php
+│   │   ├── logRequest en ValidationMiddleware
+│   │   └── Recomendaciones PSR-3
+│   ├── Manejo OpenKM
+│   │   ├── Detección por substring
+│   │   ├── Timeout configuration
+│   │   └── Tabla de excepciones
+│   ├── Debugging
+│   │   ├── Debug mode
+│   │   └── Escenarios comunes
+│   └── Mejores Prácticas (8)
+│
+├── 09_CONFIGURACION_Y_UTILIDADES.md (35 KB)
+│   ├── Config.php Completo
+│   │   ├── 25 constantes documentadas
+│   │   ├── Credenciales OpenKM
+│   │   ├── Rutas base y principales
+│   │   └── Taxonomías y categorías
+│   ├── Utils.php Completo (11 métodos)
+│   │   ├── cors()
+│   │   ├── getCoincidencias()
+│   │   ├── esArraySimple()
+│   │   ├── textoAnombreCarpeta()
+│   │   ├── extraeElemento()
+│   │   ├── arrayMatch()
+│   │   ├── csvToJsonByColumns()
+│   │   ├── generaID()
+│   │   ├── borrarMultiplesArchivos()
+│   │   ├── buscarPorId()
+│   │   └── getLabels()
+│   ├── Router.php
+│   │   ├── Métodos principales (7)
+│   │   ├── Sistema de middleware
+│   │   └── Parámetros dinámicos
+│   ├── BaseController.php
+│   │   └── 7 métodos protegidos
+│   └── Variables de Entorno
+│       └── Estructura .env completa
+│
+└── 10_INTEGRACION_SERVICIOS_EXTERNOS.md (44 KB)
+    ├── rund-ai (Ollama con Mistral)
+    │   ├── URL: http://rund-ai:11434
+    │   ├── AIService completo (11 métodos)
+    │   ├── 8 tipos de documentos soportados
+    │   ├── Estructura de prompts
+    │   ├── Configuración (temp, top-p, tokens)
+    │   ├── Timeout: 480 segundos
+    │   └── Ejemplos completos
+    ├── rund-ocr (PaddleOCR)
+    │   ├── URL: http://rund-ocr:8000
+    │   ├── Idiomas: Español, Inglés
+    │   ├── Límite: 50MB, Timeout: 60s
+    │   ├── 3 endpoints
+    │   └── Integración con AIService
+    ├── LibreOffice Headless
+    │   ├── Versión: 25.8+
+    │   ├── LBService (3 métodos)
+    │   ├── Handlers: calc_pdf, writer_pdf
+    │   └── Troubleshooting
+    └── Pipeline AI Completo
+        ├── Flujo: Doc → OCR → Clean → AI → Valid
+        ├── Reintentos (max 3)
+        └── Ejemplos end-to-end
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📊 ESTADÍSTICAS TOTALES:
+
+    Total Archivos:        14 (13 MD + 1 TXT)
+    Total Tamaño:          ~520 KB
+    Total Líneas:          ~16,500
+    Diagramas Mermaid:     15+
+    Ejemplos de código:    120+
+    Tablas/Resúmenes:      90+
+    Clases documentadas:   31
+    Métodos documentados:  150+
+    Endpoints cubiertos:   27/27 (100%)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🎯 INICIO RÁPIDO:
+
+    1. Lee:    RESUMEN_EJECUTIVO.md
+    2. Revisa: 00_INDICE_DOCUMENTACION.md
+    3. Navega: Según tu rol (ver índice)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ ESTADO: DOCUMENTACIÓN 100% COMPLETA
+📅 GENERADO: Octubre 2025
+🏢 PROYECTO: RUND-API v2.0 - ESAP
+
+═══════════════════════════════════════════════════════════════════════════════
