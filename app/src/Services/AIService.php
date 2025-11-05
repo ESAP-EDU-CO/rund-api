@@ -20,26 +20,36 @@ use RUND\Config\Config as Config;
 class AIService
 {
   /**
-   * analizaDocumento Analiza un documento usando OCR y AI
+   * analizaDocumento Analiza un documento usando OCR y AI (nueva arquitectura con rund-ai + nuextract)
    * @param string $filePath Ruta del archivo del documento a procesar
-   * @param string $tipoDocumento Tipo de documento (ej. "certificado", "contrato", "documento de identidad", "hoja de vida")
-   * @param array $datosExtraer Datos a extraer del documento
-   * @param string|null $prompt Prompt personalizado para la AI (opcional)
+   * @param string $tipoDocumento Tipo de documento (ej. "certificado", "contrato", "documento_identidad", "hoja_vida")
+   * @param array $datosExtraer Datos a extraer del documento (no usado en nueva arquitectura, se usa schema interno)
+   * @param string|null $prompt Prompt personalizado para la AI (opcional, no usado en nueva arquitectura)
    * @return array Resultado del análisis con OCR y AI
    */
   public static function analizaDocumento(string $filePath, string $tipoDocumento, array $datosExtraer): array
   {
+    // Paso 1: Extraer texto con OCR
     $ocrResult = self::extraerTextoDeDocumento($filePath);
     unlink($filePath);
-    $extractedText = $ocrResult['text'];
-    if ($extractedText) {
-      $aiPayload = self::construyeAiPayload($tipoDocumento, $datosExtraer, $extractedText);
-      $respuestaIA = self::requestAI($aiPayload);
-      $aiResult = self::procesarRespuestaIA($respuestaIA['data']);
-      $aiResult['ocr_result'] = $ocrResult;
-      return $aiResult;
+
+    $extractedText = $ocrResult['text'] ?? null;
+
+    if (!$extractedText) {
+      return [
+        'success' => false,
+        'error' => 'No se pudo extraer texto del documento',
+        'ocr_result' => $ocrResult
+      ];
     }
-    return $ocrResult;
+
+    // Paso 2: Extraer datos estructurados con rund-ai (usa NuExtract via Ollama)
+    $aiResult = self::extraerDatosConAI($tipoDocumento, $extractedText);
+
+    // Agregar información del OCR al resultado
+    $aiResult['ocr_result'] = $ocrResult;
+
+    return $aiResult;
   }
 
   /**
@@ -64,6 +74,99 @@ class AIService
       return json_decode($resp, true);
     } else {
       return ["error" => "Error OCR: " . $resp];
+    }
+  }
+
+  /**
+   * extraerDatosConAI Extrae datos estructurados usando rund-ai + NuExtract
+   *
+   * Nueva función que utiliza la arquitectura rund-ai → rund-ollama (nuextract)
+   * para extracción estructurada de datos de documentos.
+   *
+   * @param string $tipoDocumento Tipo de documento (ej: "documento_identidad", "certificado_laboral")
+   * @param string $textoExtraido Texto extraído por OCR
+   * @return array Resultado con datos estructurados extraídos
+   */
+  public static function extraerDatosConAI(string $tipoDocumento, string $textoExtraido): array
+  {
+    try {
+      // Construir payload para rund-ai
+      $payload = [
+        'text' => $textoExtraido,
+        'tipo_documento' => $tipoDocumento
+      ];
+
+      // Endpoint de rund-ai
+      $aiUrl = $_ENV['AI_API_URL'] . '/extract';
+
+      // Configurar cURL
+      $curl = curl_init();
+      $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+      curl_setopt_array($curl, [
+        CURLOPT_URL => $aiUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_TIMEOUT => 300, // 5 minutos para NuExtract
+        CURLOPT_CONNECTTIMEOUT => 30,
+        CURLOPT_POSTFIELDS => $jsonPayload,
+        CURLOPT_HTTPHEADER => [
+          'Content-Type: application/json',
+          'Content-Length: ' . strlen($jsonPayload),
+          'Accept: application/json'
+        ],
+      ]);
+
+      // Ejecutar petición
+      $response = curl_exec($curl);
+      $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+      $curlError = curl_error($curl);
+      curl_close($curl);
+
+      // Verificar errores de cURL
+      if ($response === false) {
+        throw new \Exception("Error de cURL: {$curlError}");
+      }
+
+      // Verificar código HTTP
+      if ($httpCode !== 200) {
+        return [
+          'success' => false,
+          'error' => "Error HTTP {$httpCode} al llamar a rund-ai",
+          'response' => $response,
+          'http_code' => $httpCode
+        ];
+      }
+
+      // Decodificar respuesta JSON
+      $resultado = json_decode($response, true);
+
+      if (json_last_error() !== JSON_ERROR_NONE) {
+        throw new \Exception('Error al decodificar respuesta JSON: ' . json_last_error_msg());
+      }
+
+      // Verificar estructura de respuesta de rund-ai
+      if (!isset($resultado['success'])) {
+        throw new \Exception('Respuesta de rund-ai no tiene campo "success"');
+      }
+
+      // Retornar resultado con estructura estandarizada
+      return [
+        'success' => $resultado['success'],
+        'data' => $resultado['data'] ?? null,
+        'schema' => $resultado['schema'] ?? $tipoDocumento,
+        'validation' => $resultado['validation'] ?? null,
+        'elapsed_time' => $resultado['elapsed_time'] ?? null,
+        'error' => $resultado['error'] ?? null
+      ];
+
+    } catch (\Exception $e) {
+      error_log("Error en extraerDatosConAI: " . $e->getMessage());
+      return [
+        'success' => false,
+        'error' => $e->getMessage(),
+        'data' => null
+      ];
     }
   }
 
