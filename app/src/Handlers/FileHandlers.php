@@ -311,6 +311,44 @@ class FileHandlers
   }
 
   /**
+   * Obtiene el índice docente JSON desde OpenKM
+   * @return array Array con el índice docente o error si no existe
+   */
+  public static function getIndiceDocente(): array
+  {
+    $salida = ["error" => null, "indice" => null, "uuid" => null];
+    $nombreArchivo = "indice_docente.json";
+    $path = Config::TAX_LISTADOS . "INDICE_DOCENTE";
+
+    try {
+      // Buscar el archivo en OpenKM
+      $uuid = OpenKM::findArchivo($nombreArchivo, $path);
+
+      if (!$uuid) {
+        $salida["error"] = "El índice docente no existe. Debe cargar primero el archivo ListadoGeneralDocente.csv";
+        return $salida;
+      }
+
+      // Obtener el contenido del archivo
+      $contenido = OpenKM::getArchivo($uuid);
+      $indice = json_decode($contenido, true);
+
+      if (!$indice || !is_array($indice)) {
+        $salida["error"] = "El índice docente existe pero no es un JSON válido";
+        return $salida;
+      }
+
+      $salida["indice"] = $indice;
+      $salida["uuid"] = $uuid;
+
+    } catch (\Exception $e) {
+      $salida["error"] = "Error al obtener índice docente: " . $e->getMessage();
+    }
+
+    return $salida;
+  }
+
+  /**
    * Mapea un encabezado de CSV a su clave correspondiente en labels.json
    * @param string $encabezado El encabezado del CSV a mapear
    * @param array $labels El array de labels.json obtenido de OpenKM

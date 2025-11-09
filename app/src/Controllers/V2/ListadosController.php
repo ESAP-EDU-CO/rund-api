@@ -116,4 +116,39 @@ class ListadosController extends BaseController
 			]
 		]);
 	}
+
+	/**
+	 * GET /api/v2/listados/indice
+	 * Obtiene el índice docente JSON (indice_docente.json)
+	 *
+	 * Este endpoint retorna el índice completo de docentes en formato JSON,
+	 * generado automáticamente desde ListadoGeneralDocente.csv.
+	 *
+	 * Estructura del JSON retornado:
+	 * {
+	 *   "cedula1": { datos_docente },
+	 *   "cedula2": { datos_docente },
+	 *   ...
+	 * }
+	 *
+	 * @return array Respuesta con el índice docente o error si no existe
+	 */
+	public function getIndice(array $params = []): array
+	{
+		$result = FileHandlers::getIndiceDocente();
+
+		if (isset($result['error']) && $result['error']) {
+			return $this->errorResponse($result['error'], 404);
+		}
+
+		return $this->successResponse([
+			'indice' => $result['indice'],
+			'meta' => [
+				'total_docentes' => count($result['indice']),
+				'estructura' => 'objeto plano con cédulas como claves',
+				'uuid' => $result['uuid'] ?? null,
+				'version' => '2.0'
+			]
+		]);
+	}
 }

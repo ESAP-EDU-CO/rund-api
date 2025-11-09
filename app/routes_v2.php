@@ -100,6 +100,7 @@ function setupRoutesV2(Router $router): void
 			]);
 			$router->get('/datos', [ListadosController::class, 'getDatos']);
 			$router->get('/csv', [ListadosController::class, 'getCsv']);
+			$router->get('/indice', [ListadosController::class, 'getIndice']);
 		});
 
 		// --- Firmas ---
