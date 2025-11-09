@@ -135,31 +135,32 @@ class FileHandlers
             $salida["creaCategorias"] = CategoriasService::creaCategorias($categorias);
             $postData = ["uuid" => $uuid, "categories" => $categorias];
             $salida["respCategorias"] = OpenKM::consulta("document/setProperties", "PUT", $postData);
+          }
 
-            // FLUJO ESPECIAL: Si es ListadoGeneralDocente.csv y tipo LISTADO_DE_DOCENTES
-            if ($nombreArchivo === "ListadoGeneralDocente.csv" && $tipo === "LISTADO_DE_DOCENTES") {
-              // Generar el índice JSON a partir del CSV
-              $rutaCSV = $files["archivo"]["tmp_name"];
-              $resultadoJson = self::generaIndiceJson($rutaCSV);
+          // FLUJO ESPECIAL: Si es ListadoGeneralDocente.csv y tipo LISTADO_DE_DOCENTES
+          // Se ejecuta tanto para archivos nuevos como para actualizaciones
+          if ($nombreArchivo === "ListadoGeneralDocente.csv" && $tipo === "LISTADO_DE_DOCENTES") {
+            // Generar el índice JSON a partir del CSV
+            $rutaCSV = $files["archivo"]["tmp_name"];
+            $resultadoJson = self::generaIndiceJson($rutaCSV);
 
-              if ($resultadoJson["error"]) {
-                $salida["indiceJson"] = ["error" => $resultadoJson["error"]];
-              } else {
-                // Almacenar el JSON en OpenKM
-                $resultadoAlmacenamiento = self::almacenaIndiceJson($resultadoJson["json"]);
-                $salida["indiceJson"] = [
-                  "error" => $resultadoAlmacenamiento["error"],
-                  "registros" => $resultadoJson["registros"],
-                  "estructura" => $resultadoJson["estructura"],
-                  "merge" => $resultadoAlmacenamiento["merge"] ?? false,
-                  "registrosAnteriores" => $resultadoAlmacenamiento["registrosAnteriores"] ?? 0,
-                  "registrosNuevos" => $resultadoAlmacenamiento["registrosNuevos"] ?? 0,
-                  "registrosFinales" => $resultadoAlmacenamiento["registrosFinales"] ?? $resultadoJson["registros"],
-                  "archivoExiste" => $resultadoAlmacenamiento["archivoExiste"] ?? false,
-                  "uuid" => $resultadoAlmacenamiento["uuid"] ?? null,
-                  "carga" => $resultadoAlmacenamiento["carga"] ?? null
-                ];
-              }
+            if ($resultadoJson["error"]) {
+              $salida["indiceJson"] = ["error" => $resultadoJson["error"]];
+            } else {
+              // Almacenar el JSON en OpenKM
+              $resultadoAlmacenamiento = self::almacenaIndiceJson($resultadoJson["json"]);
+              $salida["indiceJson"] = [
+                "error" => $resultadoAlmacenamiento["error"],
+                "registros" => $resultadoJson["registros"],
+                "estructura" => $resultadoJson["estructura"],
+                "merge" => $resultadoAlmacenamiento["merge"] ?? false,
+                "registrosAnteriores" => $resultadoAlmacenamiento["registrosAnteriores"] ?? 0,
+                "registrosNuevos" => $resultadoAlmacenamiento["registrosNuevos"] ?? 0,
+                "registrosFinales" => $resultadoAlmacenamiento["registrosFinales"] ?? $resultadoJson["registros"],
+                "archivoExiste" => $resultadoAlmacenamiento["archivoExiste"] ?? false,
+                "uuid" => $resultadoAlmacenamiento["uuid"] ?? null,
+                "carga" => $resultadoAlmacenamiento["carga"] ?? null
+              ];
             }
           }
         } else {
