@@ -2754,6 +2754,186 @@ FileHandlers::getFile('imagen', 'logo.png');
 
 ---
 
+##### 6. generaIndiceJson() [PRIVADO]
+
+**Línea:** 313
+
+**Firma:**
+```php
+private static function generaIndiceJson(string $rutaCSV): array
+```
+
+**Descripción:**
+Genera un archivo JSON (indice_docente.json) a partir del contenido de un CSV de listado docente. Esta función mapea automáticamente los encabezados del CSV a las claves definidas en `labels.json` y construye un objeto JSON con la estructura de cédula como clave.
+
+**Parámetros:**
+- `$rutaCSV` (string): Ruta temporal del archivo CSV cargado
+
+**Retorna:**
+`array` - Resultado de la operación con campos:
+- `error`: null si exitoso, mensaje de error si falla
+- `json`: String JSON generado
+- `registros`: Número de docentes procesados
+- `estructura`: Descripción de la estructura del JSON generado
+
+**Lógica interna:**
+1. Lee `labels.json` desde OpenKM para obtener el mapeo de campos
+2. Abre y lee el archivo CSV
+3. Mapea cada encabezado del CSV a su correspondiente clave en labels.json
+4. Identifica la columna "Documento de identidad" como clave principal
+5. Construye un objeto JSON plano con cédulas como claves
+6. Excluye la columna "#" del resultado final
+
+**Excepciones:**
+- Captura todas las excepciones y las retorna en el campo 'error'
+
+**Dependencias externas:**
+- OpenKM::getDataFile()
+- Utils::textoAnombreCarpeta()
+
+**Ejemplo de estructura generada:**
+```json
+{
+  "479678": {
+    "DOCUMENTO_DE_IDENTIDAD": "479678",
+    "VINCULACION": "Ocasional",
+    "NOMBRE_Y_APELLIDO": "ABEL ANTONIO ABELLA BELTRAN",
+    "TERRITORIAL": "META",
+    ...
+  },
+  "5711867": {
+    ...
+  }
+}
+```
+
+**Notas:**
+- Método privado, solo llamado internamente desde loadList()
+- La estructura plana permite búsqueda O(1) por cédula
+- Saltea filas vacías automáticamente
+- Normaliza todos los valores con trim()
+
+---
+
+##### 7. mapearEncabezadoALabel() [PRIVADO]
+
+**Línea:** 292
+
+**Firma:**
+```php
+private static function mapearEncabezadoALabel(string $encabezado, array $labels): string
+```
+
+**Descripción:**
+Mapea un encabezado de CSV a su clave correspondiente en labels.json. Si no encuentra coincidencia exacta, normaliza el encabezado usando la función `Utils::textoAnombreCarpeta()`.
+
+**Parámetros:**
+- `$encabezado` (string): El encabezado del CSV a mapear
+- `$labels` (array): El array de labels.json obtenido de OpenKM
+
+**Retorna:**
+`string` - La clave mapeada (normalizada si no se encuentra en labels)
+
+**Lógica interna:**
+1. Normaliza el encabezado (elimina tildes, convierte a mayúsculas, reemplaza espacios por _)
+2. Busca en labels.json si existe una clave cuyo valor sea igual al encabezado original
+3. Si encuentra coincidencia, retorna la clave
+4. Si no encuentra, retorna el encabezado normalizado
+
+**Excepciones:**
+- Ninguna
+
+**Dependencias externas:**
+- Utils::textoAnombreCarpeta()
+
+**Ejemplo de uso:**
+```php
+$labels = [
+  "VINCULACION" => "Vinculación",
+  "NOMBRE_Y_APELLIDO" => "Nombre completo"
+];
+
+$resultado1 = mapearEncabezadoALabel("Vinculación", $labels);
+// Retorna: "VINCULACION"
+
+$resultado2 = mapearEncabezadoALabel("Campo Nuevo", $labels);
+// Retorna: "CAMPO_NUEVO" (normalizado)
+```
+
+**Notas:**
+- Método privado, auxiliar de generaIndiceJson()
+- Permite mapeo automático de campos nuevos
+- Mantiene consistencia con nomenclatura del sistema
+
+---
+
+##### 8. almacenaIndiceJson() [PRIVADO]
+
+**Línea:** 415
+
+**Firma:**
+```php
+private static function almacenaIndiceJson(string $jsonNuevo): array
+```
+
+**Descripción:**
+Almacena o actualiza el archivo indice_docente.json en OpenKM, haciendo merge inteligente si ya existe. El merge preserva campos existentes y añade/actualiza campos nuevos por cada docente.
+
+**Parámetros:**
+- `$jsonNuevo` (string): El contenido JSON nuevo a almacenar/mergear
+
+**Retorna:**
+`array` - Resultado de la operación con campos:
+- `error`: null si exitoso, mensaje de error si falla
+- `creaCarpeta`: Resultado de la creación de la carpeta INDICE_DOCENTE
+- `archivoExiste`: Boolean indicando si el archivo ya existía
+- `uuid`: UUID del archivo en OpenKM (si existe)
+- `merge`: Boolean indicando si se hizo merge
+- `registrosAnteriores`: Cantidad de registros previos (solo si merge)
+- `registrosNuevos`: Cantidad de registros nuevos
+- `registrosFinales`: Total de registros después del merge
+- `carga`: Resultado de la operación de carga/actualización en OpenKM
+
+**Lógica interna:**
+1. Crea la carpeta `/okm:root/RUND/DOCUMENTOS/LISTADOS/INDICE_DOCENTE` si no existe
+2. Busca si ya existe el archivo `indice_docente.json`
+3. Si existe:
+   - Descarga el contenido actual
+   - Hace merge preservando campos existentes
+   - Crea nueva versión usando checkout/checkin
+4. Si no existe:
+   - Crea el archivo nuevo
+5. Limpia archivos temporales
+
+**Ejemplo de merge:**
+```php
+// JSON existente
+{"479678": {"VINCULACION": "Ocasional", "CAMPO_VIEJO": "valor"}}
+
+// Nuevo JSON
+{"479678": {"VINCULACION": "Carrera1", "CAMPO_NUEVO": "nuevo"}}
+
+// Resultado del merge
+{"479678": {"VINCULACION": "Carrera1", "CAMPO_VIEJO": "valor", "CAMPO_NUEVO": "nuevo"}}
+```
+
+**Excepciones:**
+- Captura todas las excepciones y las retorna en el campo 'error'
+
+**Dependencias externas:**
+- OpenKM::creaCarpetas()
+- OpenKM::findArchivo()
+- OpenKM::getArchivo()
+- OpenKM::cargaArchivo()
+
+**Notas:**
+- Método privado, solo llamado internamente desde loadList()
+- El merge usa array_merge() en PHP para combinar campos
+- Permite cargas incrementales de datos
+- Mantiene historial de versiones en OpenKM
+
+---
+
 ### FirmasHandlers
 
 **Ubicación:** `/app/src/Handlers/FirmasHandlers.php`
