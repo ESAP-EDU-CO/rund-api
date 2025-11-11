@@ -34,6 +34,16 @@ class Config
   const TEMP_DIR = __DIR__ . "/../../tmp/";
 
   // ============================================================================
+  // SERVICIOS EXTERNOS (AI, OCR)
+  // ============================================================================
+
+  /** @var string URL del servicio rund-ai (extracción y análisis) */
+  const RUND_AI_URL = "http://rund-ai:8001";
+
+  /** @var string URL base de esta API (para callbacks) */
+  const API_BASE_URL = "http://rund-api:3000";
+
+  // ============================================================================
   // ESTRUCTURA DE RUTAS EN OPENKM
   // ============================================================================
 
@@ -81,6 +91,9 @@ class Config
 
   /** @var string Categoría de imágenes de app */
   const CTGR_CONF_DATA = self::ROOT_CTG_CONF . "DATA/";
+
+  /** @var string Categoría de estado de extracción (pendiente/procesando/completado/error) */
+  const CTGR_EXTRACTION = self::ROOT_CTG_DOCS . "EXTRACTION_STATUS/";
 
 
   // ----------------------------- TAXONOMÍAS ESPECÍFICAS -----------------------------

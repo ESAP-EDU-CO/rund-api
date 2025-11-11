@@ -118,6 +118,9 @@ function setupRoutesV2(Router $router): void
 				ValidationMiddleware::requireFiles(['documento']),
 				ValidationMiddleware::validateFileSize(50 * 1024 * 1024) // 50MB max
 			]);
+
+			// Webhook para callbacks de rund-ai
+			$router->post('/webhook/extraction-complete', [AIController::class, 'extractionComplete']);
 		});
 	});
 

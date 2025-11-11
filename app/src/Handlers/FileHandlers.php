@@ -282,6 +282,10 @@ class FileHandlers
         $uuid = json_decode(OpenKM::consulta($query), true)["queryResult"]["node"]["uuid"]; // Extrae el UUID del archivo cargado
         $postData = ["uuid" => $uuid, "categories" => $categorias]; // Genera el array de datos para actualizar las propiedades del documento
         $salida["setProperties"] = OpenKM::consulta("document/setProperties", "PUT", $postData); // Actualiza las propiedades del documento en OpenKM
+
+        // === NUEVO: Encolar para extracción asíncrona ===
+        $salida["extraction_queued"] = self::queueExtraction($uuid, $path, $tipoDocumento);
+
         break;
     }
     return $salida;
@@ -576,5 +580,87 @@ class FileHandlers
     }
 
     return $salida;
+  }
+
+  /**
+   * Encola un documento para extracción asíncrona en rund-ai
+   *
+   * Este método NO bloquea la carga del documento. Si falla el encolado,
+   * se registra el error pero se permite que la carga continúe.
+   *
+   * @param string $uuid UUID del documento en OpenKM
+   * @param string $path Ruta completa del documento en OpenKM (ej: /okm:root/RUND/DOCUMENTOS/HOJAS_VIDA/12345/cedula.pdf)
+   * @param string $tipoDocumento Tipo de documento (cédula, certificado_laboral, etc.)
+   * @return array Respuesta con información del encolado
+   */
+  private static function queueExtraction(string $uuid, string $path, string $tipoDocumento): array
+  {
+    try {
+      // 1. Asignar categoría "pendiente" para extracción
+      $categoriaPendiente = Config::CTGR_EXTRACTION . "pendiente";
+
+      // Crear categoría si no existe
+      OpenKM::creaCarpetas([$categoriaPendiente], Config::ROOT_CTG);
+
+      // Asignar categoría al documento
+      $postData = [
+        "uuid" => $uuid,
+        "categories" => [
+          ["path" => $categoriaPendiente]
+        ]
+      ];
+      OpenKM::consulta("document/setProperties", "PUT", $postData);
+
+      // 2. Preparar payload para rund-ai
+      $payload = [
+        "documents" => [[
+          "document_id" => $uuid,
+          "file_path" => $path,
+          "tipo_documento" => $tipoDocumento
+        ]],
+        "callback_url" => Config::API_BASE_URL . "/api/v2/webhooks/extraction-complete"
+      ];
+
+      // 3. Enviar a cola de rund-ai
+      $ch = curl_init(Config::RUND_AI_URL . "/queue/add-batch");
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+      curl_setopt($ch, CURLOPT_POST, true);
+      curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+      curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+      curl_setopt($ch, CURLOPT_TIMEOUT, 5); // Timeout corto, debe responder inmediatamente
+
+      $response = curl_exec($ch);
+      $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      $curlError = curl_error($ch);
+      curl_close($ch);
+
+      if ($httpCode === 202) {
+        $responseData = json_decode($response, true);
+        return [
+          "success" => true,
+          "queued" => true,
+          "queue_size" => $responseData["queue_size"] ?? 0,
+          "message" => "Documento encolado para extracción"
+        ];
+      } else {
+        error_log("ERROR encolando extracción - HTTP $httpCode: $response");
+        return [
+          "success" => false,
+          "queued" => false,
+          "error" => "rund-ai no disponible o error en cola",
+          "http_code" => $httpCode,
+          "details" => $curlError ?: $response
+        ];
+      }
+
+    } catch (\Exception $e) {
+      // Si falla el encolado, documentar pero NO fallar la carga
+      error_log("EXCEPTION encolando extracción: " . $e->getMessage());
+      return [
+        "success" => false,
+        "queued" => false,
+        "error" => $e->getMessage()
+      ];
+    }
   }
 }

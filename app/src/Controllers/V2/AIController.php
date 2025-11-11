@@ -49,4 +49,49 @@ class AIController extends BaseController
             ]
         ]);
     }
+
+    /**
+     * POST /api/v2/ai/webhook/extraction-complete
+     * Webhook que recibe callbacks de rund-ai cuando termina una extracción
+     */
+    public function extractionComplete(array $params = []): array
+    {
+        $postData = $this->getPostData();
+
+        if (!$postData) {
+            return $this->errorResponse('Datos POST requeridos');
+        }
+
+        // Validar campos requeridos
+        $validation = $this->validateRequired($postData, ['document_id', 'status']);
+        if (!empty($validation)) {
+            return $validation;
+        }
+
+        // Log del callback recibido
+        error_log("WEBHOOK extraction-complete: " . json_encode([
+            'document_id' => $postData['document_id'],
+            'status' => $postData['status'],
+            'timestamp' => date('Y-m-d H:i:s')
+        ]));
+
+        // Procesar según el estado
+        try {
+            $result = AIHandlers::procesarCallbackExtraccion($postData);
+
+            return $this->successResponse([
+                'message' => 'Callback procesado correctamente',
+                'document_id' => $postData['document_id'],
+                'status' => $postData['status'],
+                'processed' => $result
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("ERROR procesando webhook: " . $e->getMessage());
+            return $this->errorResponse(
+                'Error procesando callback: ' . $e->getMessage(),
+                500
+            );
+        }
+    }
 }
