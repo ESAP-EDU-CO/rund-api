@@ -284,7 +284,8 @@ class FileHandlers
         $salida["setProperties"] = OpenKM::consulta("document/setProperties", "PUT", $postData); // Actualiza las propiedades del documento en OpenKM
 
         // === NUEVO: Encolar para extracción asíncrona ===
-        $salida["extraction_queued"] = self::queueExtraction($uuid, $path, $tipoDocumento);
+        $filePath = $path . "/" . $nombreArchivo; // Construir ruta completa del archivo
+        $salida["extraction_queued"] = self::queueExtraction($uuid, $filePath, $tipoDocumento);
 
         break;
     }
