@@ -128,9 +128,10 @@ class DocumentService
     foreach ($categorias as $item) {
       if (count($item) === 3) {
         // Caso de 3 niveles: [categoria][subcategoria] = valor
-        $categoria = $labels[$item[0]];
-        $subcategoria = $labels[$item[1]];
-        $valor = $labels[$item[2]];
+        // Si la categoría no tiene label, usar el valor original
+        $categoria = $labels[$item[0]] ?? $item[0];
+        $subcategoria = $labels[$item[1]] ?? $item[1];
+        $valor = $labels[$item[2]] ?? $item[2];
         // Si ya existe esta combinación categoria/subcategoria
         if (isset($resultado[$categoria][$subcategoria])) {
           // Si no es array todavía, convertirlo
@@ -145,8 +146,9 @@ class DocumentService
         }
       } elseif (count($item) === 2) {
         // Caso de 2 niveles: [categoria][] = valor
-        $categoria = $labels[$item[0]];
-        $valor = $labels[$item[1]];
+        // Si la categoría no tiene label, usar el valor original
+        $categoria = $labels[$item[0]] ?? $item[0];
+        $valor = $labels[$item[1]] ?? $item[1];
         if (!isset($resultado[$categoria])) {
           $resultado[$categoria] = [];
         }
