@@ -4,7 +4,7 @@
 	"type": "project",
 	"require": {
 		"php": "^8.3",
-		"phpoffice/phpspreadsheet": "^4.4",
+		"phpoffice/phpspreadsheet": "^5.2",
 		"phpoffice/phpword": "^1.4",
 		"dompdf/dompdf": "^3.1",
 		"endroid/qr-code": "^6.0.9",
@@ -30,6 +30,9 @@
 		"sort-packages": true,
 		"allow-plugins": {
 			"composer/package-versions-deprecated": true
+		},
+		"audit": {
+			"abandoned": "report"
 		}
 	},
 	"scripts": {
