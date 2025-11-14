@@ -597,18 +597,40 @@ class FileHandlers
   private static function queueExtraction(string $uuid, string $path, string $tipoDocumento): array
   {
     try {
-      // 1. Asignar categoría "pendiente" para extracción
+      // 1. Obtener categorías actuales del documento
+      $query = "document/getProperties?docId=" . urlencode($uuid);
+      $propiedades = json_decode(OpenKM::consulta($query), true);
+      $categoriasActuales = $propiedades["categories"] ?? [];
+
+      // Convertir categorías actuales al formato correcto si es necesario
+      $categoriasArray = [];
+      if (!empty($categoriasActuales)) {
+        // Si es un solo elemento, convertir a array
+        if (isset($categoriasActuales["path"])) {
+          $categoriasArray = [["path" => $categoriasActuales["path"]]];
+        } else {
+          // Es un array, mantener formato
+          foreach ($categoriasActuales as $cat) {
+            if (isset($cat["path"])) {
+              $categoriasArray[] = ["path" => $cat["path"]];
+            }
+          }
+        }
+      }
+
+      // 2. Añadir categoría "pendiente" para extracción
       $categoriaPendiente = Config::CTGR_EXTRACTION . "pendiente";
 
       // Crear categoría si no existe
       OpenKM::creaCarpetas([$categoriaPendiente], Config::ROOT_CTG);
 
-      // Asignar categoría al documento
+      // Añadir nueva categoría a las existentes
+      $categoriasArray[] = ["path" => $categoriaPendiente];
+
+      // 3. Actualizar TODAS las categorías (existentes + nueva)
       $postData = [
         "uuid" => $uuid,
-        "categories" => [
-          ["path" => $categoriaPendiente]
-        ]
+        "categories" => $categoriasArray
       ];
       OpenKM::consulta("document/setProperties", "PUT", $postData);
 

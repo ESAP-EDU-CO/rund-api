@@ -74,14 +74,53 @@ class DocumentService
     $query = "search/find?path=" . urlencode(Config::TAX_HOJAS . $cedula) . $buscaNombre;
     $resp = json_decode(OpenKM::consulta($query), true)["queryResult"];
     if (!$resp) return null;
+
     // Es información demográfica, que se obtiene de un único documento: la cédula
-    if ($demografica) return self::extraeDatosDocumento($resp["node"], Config::TAX_HOJAS, Config::ROOT_CTG_PROF);
+    if ($demografica) {
+      // Si hay múltiples resultados, tomar el primero que sea PDF
+      if (isset($resp[0])) {
+        // Hay múltiples resultados
+        foreach ($resp as $item) {
+          $nodo = $item["node"] ?? null;
+          if ($nodo && isset($nodo["mimeType"]) && $nodo["mimeType"] === "application/pdf") {
+            return self::extraeDatosDocumento($nodo, Config::TAX_HOJAS, Config::ROOT_CTG_PROF);
+          }
+        }
+        // Si no se encontró PDF, tomar el primero
+        $nodo = $resp[0]["node"] ?? null;
+        if ($nodo) {
+          return self::extraeDatosDocumento($nodo, Config::TAX_HOJAS, Config::ROOT_CTG_PROF);
+        }
+      } else {
+        // Un solo resultado
+        $nodo = $resp["node"] ?? null;
+        if ($nodo) {
+          return self::extraeDatosDocumento($nodo, Config::TAX_HOJAS, Config::ROOT_CTG_PROF);
+        }
+      }
+      return null;
+    }
+
     // Se solicita información de TODOS los documentos almacenados del profesor
     $datos = [];
-    foreach ($resp as $el) {
-      $nodo = $el["node"];
-      $datos[] = self::extraeDatosDocumento($nodo, Config::TAX_HOJAS, Config::CTGR_DOCS_HOJAS);
+
+    // Verificar si hay múltiples resultados o uno solo
+    if (isset($resp[0])) {
+      // Múltiples resultados
+      foreach ($resp as $el) {
+        $nodo = $el["node"] ?? null;
+        if ($nodo) {
+          $datos[] = self::extraeDatosDocumento($nodo, Config::TAX_HOJAS, Config::CTGR_DOCS_HOJAS);
+        }
+      }
+    } else {
+      // Un solo resultado
+      $nodo = $resp["node"] ?? null;
+      if ($nodo) {
+        $datos[] = self::extraeDatosDocumento($nodo, Config::TAX_HOJAS, Config::CTGR_DOCS_HOJAS);
+      }
     }
+
     return $datos;
   }
 
@@ -100,16 +139,32 @@ class DocumentService
     $partes = explode("/", $path);
     $nombre = array_pop($partes);
     // Extrae las categorías (sean de documento o demográficas) del documento
-    $cates = $nodo["categories"];
     $categorias = [];
-    foreach ($cates as $cate) {
-      $pathCate = $cate["path"];
-      if (preg_match("#$cat#", $pathCate)) {
-        $ruta = preg_replace("#$cat#", "", $pathCate);
-        $partes = explode("/", $ruta);
-        $categorias[] = $partes;
+
+    // Validar que existan categorías y sean un array
+    if (isset($nodo["categories"]) && !empty($nodo["categories"])) {
+      $cates = $nodo["categories"];
+
+      // Si es un solo elemento (objeto), convertirlo a array
+      if (isset($cates["path"])) {
+        $cates = [$cates];
+      }
+
+      // Asegurar que sea array antes de iterar
+      if (is_array($cates)) {
+        foreach ($cates as $cate) {
+          if (isset($cate["path"])) {
+            $pathCate = $cate["path"];
+            if (preg_match("#$cat#", $pathCate)) {
+              $ruta = preg_replace("#$cat#", "", $pathCate);
+              $partes = explode("/", $ruta);
+              $categorias[] = $partes;
+            }
+          }
+        }
       }
     }
+
     return [
       "nombre" => $nombre,
       "categorias" => $categorias,

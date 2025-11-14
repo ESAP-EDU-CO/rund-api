@@ -86,7 +86,7 @@ abstract class BaseController
 	 */
 	protected function successResponse(array $data = [], string $message = null): array
 	{
-		$response = $data;
+		$response = ['success' => true] + $data;
 		if ($message) {
 			$response['message'] = $message;
 		}

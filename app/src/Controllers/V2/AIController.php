@@ -94,4 +94,93 @@ class AIController extends BaseController
             );
         }
     }
+
+    /**
+     * GET /api/v2/ai/extraction/statistics
+     * Obtiene estadísticas generales del índice de extracción
+     */
+    public function getExtractionStatistics(array $params = []): array
+    {
+        try {
+            $aiUrl = $_ENV['RUND_AI_URL'] ?? 'http://rund-ai:8001';
+            $url = "$aiUrl/extraction/statistics";
+
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode !== 200) {
+                return $this->errorResponse('Error consultando estadísticas de rund-ai', 500);
+            }
+
+            $data = json_decode($response, true);
+
+            return $this->successResponse([
+                'statistics' => $data,
+                'meta' => [
+                    'source' => 'rund-ai',
+                    'version' => '2.0'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("ERROR consultando estadísticas: " . $e->getMessage());
+            return $this->errorResponse(
+                'Error consultando estadísticas: ' . $e->getMessage(),
+                500
+            );
+        }
+    }
+
+    /**
+     * GET /api/v2/ai/extraction/professor/{cedula}
+     * Obtiene documentos extraídos de un profesor específico
+     */
+    public function getProfesorExtraction(array $params = []): array
+    {
+        if (!isset($params['cedula'])) {
+            return $this->errorResponse('Cédula es requerida', 400);
+        }
+
+        $cedula = $params['cedula'];
+
+        try {
+            $aiUrl = $_ENV['RUND_AI_URL'] ?? 'http://rund-ai:8001';
+            $url = "$aiUrl/extraction/professor/$cedula";
+
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode !== 200) {
+                return $this->errorResponse('Error consultando documentos de rund-ai', 500);
+            }
+
+            $data = json_decode($response, true);
+
+            return $this->successResponse([
+                'professor' => $data,
+                'cedula' => $cedula,
+                'meta' => [
+                    'source' => 'rund-ai',
+                    'version' => '2.0'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("ERROR consultando documentos del profesor: " . $e->getMessage());
+            return $this->errorResponse(
+                'Error consultando documentos: ' . $e->getMessage(),
+                500
+            );
+        }
+    }
 }

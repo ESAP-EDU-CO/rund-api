@@ -20,6 +20,7 @@ use RUND\Controllers\V2\{
 	CategoriasController,
 	ProfesoresController,
 	DocumentosController,
+	DocumentosInternosController,
 	ArchivosController,
 	ListadosController,
 	FirmasController,
@@ -121,6 +122,23 @@ function setupRoutesV2(Router $router): void
 
 			// Webhook para callbacks de rund-ai
 			$router->post('/webhook/extraction-complete', [AIController::class, 'extractionComplete']);
+
+			// Estadísticas de extracción
+			$router->get('/extraction/statistics', [AIController::class, 'getExtractionStatistics']);
+			$router->get('/extraction/professor/{cedula}', [AIController::class, 'getProfesorExtraction']);
+		});
+
+		// --- Documentos Internos (uso entre microservicios) ---
+		// IMPORTANTE: No exponer públicamente - solo red interna Docker
+		$router->group('/internos', function (Router $router) {
+			$router->get('/health', [DocumentosInternosController::class, 'health']);
+
+			$router->group('/documentos', function (Router $router) {
+				$router->post('/obtener-uuid', [DocumentosInternosController::class, 'obtenerUuid']);
+				$router->get('/descargar/{uuid}', [DocumentosInternosController::class, 'descargar']);
+				$router->post('/subir-json', [DocumentosInternosController::class, 'subirJson']);
+				$router->put('/categoria', [DocumentosInternosController::class, 'cambiarCategoria']);
+			});
 		});
 	});
 
