@@ -56,7 +56,14 @@ class ArchivosController extends BaseController
 
 	/**
 	 * GET /api/v2/archivos/{uuid}
-	 * Obtiene un archivo por UUID
+	 * Obtiene un archivo por UUID y lo sirve como binario inline
+	 *
+	 * Este endpoint descarga el archivo desde OpenKM y lo retorna con el Content-Type
+	 * correcto. El archivo se sirve inline (no como descarga) para permitir su
+	 * visualización en el navegador y su conversión a blob en el frontend.
+	 *
+	 * @param array $params Parámetros de la ruta, debe incluir 'uuid'
+	 * @return null Siempre retorna null porque sirve el archivo directamente y hace exit()
 	 */
 	public function show(array $params = []): ?array
 	{
@@ -64,9 +71,81 @@ class ArchivosController extends BaseController
 			return $this->errorResponse('UUID es requerido', 400);
 		}
 
-		// Este endpoint normalmente sirve archivos binarios directamente
-		// Por ahora mantenemos la lógica existente
-		return $this->errorResponse('Endpoint en construcción - usar /api/v1/getFile por ahora', 501);
+		try {
+			$uuid = $params['uuid'];
+
+			// Obtener propiedades del documento para conocer el MIME type
+			$propsResponse = OpenKM::consulta("document/getProperties?docId=" . urlencode($uuid));
+			$properties = json_decode($propsResponse, true);
+
+			if (!$properties || !isset($properties['mimeType'])) {
+				http_response_code(404);
+				header('Content-Type: application/json');
+				echo json_encode([
+					'success' => false,
+					'error' => 'Archivo no encontrado en OpenKM',
+					'codigo' => 404
+				]);
+				exit();
+			}
+
+			// Obtener el contenido del archivo
+			$contenido = OpenKM::getArchivo($uuid);
+
+			if (!$contenido) {
+				http_response_code(404);
+				header('Content-Type: application/json');
+				echo json_encode([
+					'success' => false,
+					'error' => 'No se pudo obtener el contenido del archivo',
+					'codigo' => 404
+				]);
+				exit();
+			}
+
+			// Servir el archivo con los headers apropiados
+			$mimeType = $properties['mimeType'];
+			$fileName = $properties['path'] ? basename($properties['path']) : 'archivo';
+			$fileSize = strlen($contenido);
+
+			// Headers estándar para respuesta de archivo
+			header('Content-Type: ' . $mimeType);
+			header('Content-Length: ' . $fileSize);
+			header('Content-Disposition: inline; filename="' . $fileName . '"');
+
+			// Headers adicionales opcionales
+			if (isset($properties['lastModified'])) {
+				header('Last-Modified: ' . date('D, d M Y H:i:s', strtotime($properties['lastModified'])) . ' GMT');
+			}
+
+			// Cache control para optimización
+			header('Cache-Control: private, max-age=3600');
+
+			// ETag para validación de caché (usando el UUID como base)
+			$etag = md5($uuid . ($properties['versionLabel'] ?? ''));
+			header('ETag: "' . $etag . '"');
+
+			// Verificar si el cliente tiene una versión en caché
+			$ifNoneMatch = $_SERVER['HTTP_IF_NONE_MATCH'] ?? null;
+			if ($ifNoneMatch && trim($ifNoneMatch, '"') === $etag) {
+				http_response_code(304); // Not Modified
+				exit();
+			}
+
+			// Enviar el contenido del archivo
+			echo $contenido;
+			exit();
+
+		} catch (\Throwable $e) {
+			http_response_code(500);
+			header('Content-Type: application/json');
+			echo json_encode([
+				'success' => false,
+				'error' => 'Error al obtener archivo: ' . $e->getMessage(),
+				'codigo' => 500
+			]);
+			exit();
+		}
 	}
 
 	/**

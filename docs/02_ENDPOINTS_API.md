@@ -2,7 +2,7 @@
 
 > **Versión:** 2.0
 > **Autor:** Oliver Castelblanco Martínez (oliver.castelblanco@esap.edu.co)
-> **Total de Endpoints:** 27
+> **Total de Endpoints:** 28
 > **Arquitectura:** RESTful con Controllers modulares (PSR-4)
 
 ---
@@ -15,7 +15,7 @@
 4. [Profesores (3 endpoints)](#4-profesores-3-endpoints)
 5. [Documentos (3 endpoints)](#5-documentos-3-endpoints)
 6. [Archivos (7 endpoints)](#6-archivos-7-endpoints)
-7. [Listados (3 endpoints)](#7-listados-3-endpoints)
+7. [Listados (4 endpoints)](#7-listados-4-endpoints)
 8. [Firmas (3 endpoints)](#8-firmas-3-endpoints)
 9. [AI (1 endpoint)](#9-ai-1-endpoint)
 10. [Tabla Resumen](#tabla-resumen-de-todos-los-endpoints)
@@ -1203,7 +1203,7 @@ curl -X GET "http://localhost:3000/api/v2/archivos/imagenes/base.jpg?ruta=PLANTI
 
 ### 6.4 GET /api/v2/archivos/{uuid}
 
-**Descripción:** Obtiene un archivo por UUID (endpoint en construcción).
+**Descripción:** Descarga un archivo desde OpenKM por su UUID y lo sirve como binario inline. El archivo se retorna con el Content-Type correcto detectado automáticamente desde OpenKM, permitiendo su visualización en el navegador o conversión a blob en el frontend.
 
 **Controller:** `ArchivosController::show()`
 
@@ -1213,26 +1213,164 @@ curl -X GET "http://localhost:3000/api/v2/archivos/imagenes/base.jpg?ruta=PLANTI
 
 **Validaciones:**
 - UUID es requerido
+- El archivo debe existir en OpenKM
 
-**Respuesta exitosa (501):**
-```json
-{
-  "success": false,
-  "error": "Endpoint en construcción - usar /api/v1/getFile por ahora",
-  "codigo": 501
-}
+**Respuesta exitosa (200):**
+```
+HTTP/1.1 200 OK
+Content-Type: application/pdf (o image/png, image/jpeg, application/vnd.openxmlformats-officedocument.wordprocessingml.document, etc.)
+Content-Length: 2048576
+Content-Disposition: inline; filename="documento.pdf"
+Last-Modified: Mon, 20 Oct 2025 14:30:00 GMT
+Cache-Control: private, max-age=3600
+ETag: "d41d8cd98f00b204e9800998ecf8427e"
+
+[Binary file content]
+```
+
+**Respuesta 304 (Not Modified):**
+Si el cliente envía un header `If-None-Match` con el ETag actual:
+```
+HTTP/1.1 304 Not Modified
 ```
 
 **Códigos de error:**
 - `400`: UUID es requerido
-- `501`: Endpoint no implementado
+- `404`: Archivo no encontrado en OpenKM
+- `500`: Error al obtener el archivo
 
-**Ejemplo cURL:**
+**Ejemplo cURL (Descargar archivo):**
 ```bash
-curl -X GET http://localhost:3000/api/v2/archivos/abc-123-def-456
+curl -X GET http://localhost:3000/api/v2/archivos/abc-123-def-456 \
+  --output documento.pdf
 ```
 
-**Handlers/Services:** Ninguno (endpoint en construcción)
+**Ejemplo cURL (Ver headers):**
+```bash
+curl -I http://localhost:3000/api/v2/archivos/abc-123-def-456
+```
+
+**Ejemplo cURL (Con validación de caché):**
+```bash
+# Primera petición
+curl -i http://localhost:3000/api/v2/archivos/abc-123-def-456 \
+  --output documento.pdf
+
+# Segunda petición con ETag (retorna 304 si no cambió)
+curl -i http://localhost:3000/api/v2/archivos/abc-123-def-456 \
+  -H 'If-None-Match: "d41d8cd98f00b204e9800998ecf8427e"'
+```
+
+**Uso desde Frontend (TypeScript/JavaScript):**
+```typescript
+// Obtener archivo como blob
+async function descargarArchivo(uuid: string): Promise<Blob> {
+  const response = await fetch(`/api/v2/archivos/${uuid}`);
+
+  if (!response.ok) {
+    throw new Error('Error al descargar archivo');
+  }
+
+  const blob = await response.blob();
+  return blob;
+}
+
+// Descargar archivo con file-saver
+import { saveAs } from 'file-saver';
+
+async function descargarYGuardar(uuid: string, nombreArchivo: string) {
+  const blob = await descargarArchivo(uuid);
+  saveAs(blob, nombreArchivo);
+}
+
+// Mostrar imagen en el DOM
+async function mostrarImagen(uuid: string) {
+  const blob = await descargarArchivo(uuid);
+  const url = URL.createObjectURL(blob);
+
+  const img = document.createElement('img');
+  img.src = url;
+  document.body.appendChild(img);
+
+  // Liberar memoria cuando ya no se necesite
+  // URL.revokeObjectURL(url);
+}
+
+// Abrir PDF en nueva pestaña
+async function abrirPDF(uuid: string) {
+  const blob = await descargarArchivo(uuid);
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+}
+```
+
+**Uso desde Angular:**
+```typescript
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class ArchivosService {
+  constructor(private http: HttpClient) {}
+
+  descargarArchivo(uuid: string): Observable<Blob> {
+    return this.http.get(`/api/v2/archivos/${uuid}`, {
+      responseType: 'blob'
+    });
+  }
+
+  descargarYGuardar(uuid: string, nombreArchivo: string): void {
+    this.descargarArchivo(uuid).subscribe(blob => {
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombreArchivo;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    });
+  }
+}
+```
+
+**Headers de Respuesta:**
+
+| Header | Descripción | Ejemplo |
+|--------|-------------|---------|
+| `Content-Type` | MIME type del archivo (auto-detectado) | `application/pdf` |
+| `Content-Length` | Tamaño del archivo en bytes | `2048576` |
+| `Content-Disposition` | Modo de visualización (inline) y nombre | `inline; filename="documento.pdf"` |
+| `Last-Modified` | Fecha de última modificación | `Mon, 20 Oct 2025 14:30:00 GMT` |
+| `Cache-Control` | Política de caché | `private, max-age=3600` |
+| `ETag` | Identificador de versión para caché | `"d41d8cd98f00b204e9800998ecf8427e"` |
+
+**Handlers/Services:**
+- `OpenKM::consulta("document/getProperties")` para obtener MIME type y propiedades
+- `OpenKM::getArchivo()` para descargar el contenido binario
+
+**Características:**
+- **Auto-detección de Content-Type**: Detecta automáticamente el MIME type desde OpenKM
+- **Inline serving**: Sirve archivos inline (no como descarga) para visualización en navegador
+- **Caché HTTP**: Soporta validación de caché con ETag y Last-Modified
+- **Optimización**: Retorna 304 Not Modified cuando el cliente tiene la versión actual
+- **Compatibilidad**: Funciona con todos los tipos de archivo en OpenKM (PDF, DOCX, imágenes, etc.)
+
+**Migración desde v1:**
+```typescript
+// Antes (v1)
+const response = await fetch('/api/v1/getFile?tipo=data&nombre=archivo');
+
+// Ahora (v2)
+const response = await fetch(`/api/v2/archivos/${uuid}`);
+```
+
+**Notas importantes:**
+1. El archivo se sirve inline (no attachment) para permitir visualización en navegador
+2. El Content-Type se detecta automáticamente desde OpenKM
+3. Incluye headers de caché para optimizar peticiones repetidas
+4. Compatible con file-saver, blob URLs y descarga directa
+5. Soporta validación HTTP con ETag y If-None-Match
 
 ---
 
@@ -1366,7 +1504,7 @@ curl -X DELETE http://localhost:3000/api/v2/archivos/papelera
 
 ---
 
-## 7. Listados (3 endpoints)
+## 7. Listados (4 endpoints)
 
 ### 7.1 POST /api/v2/listados/cargar
 
@@ -1651,6 +1789,111 @@ curl -X GET "http://localhost:3000/api/v2/listados/csv?categoria=LISTADOS&tipo=P
 - `OpenKM::consulta("search/find")` para buscar archivo
 - `OpenKM::consulta("document/getContent")` para obtener contenido
 - `Utils::csvToJsonByColumns()` para conversión
+
+---
+
+### 7.4 GET /api/v2/listados/indice
+
+**Descripción:** Obtiene el índice docente completo en formato JSON. El índice es generado automáticamente al cargar `ListadoGeneralDocente.csv` y proporciona acceso rápido a la información de todos los profesores.
+
+**Controller:** `ListadosController::getIndice()`
+
+**Parámetros de entrada:** Ninguno
+
+**Validaciones:** Ninguna
+
+**Respuesta exitosa (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "indice": {
+      "479678": {
+        "DOCUMENTO_DE_IDENTIDAD": "479678",
+        "VINCULACION": "Ocasional",
+        "NOMBRE_Y_APELLIDO": "ABEL ANTONIO ABELLA BELTRAN",
+        "TERRITORIAL": "META",
+        "CATEGORIA": "Asociado",
+        "NUCLEO_TEMATICO": "Labores de docencia...",
+        "NIVEL_DE_FORMACION": "Maestría",
+        "PERFIL_ACADEMICO": "Administrador Publico...",
+        "PREGRADO": "Administrador Publico",
+        "ESPECIALIZACION": "Especialista en Proyectos...",
+        "MAESTRIA": "Magister en Paz Desarrollo...",
+        "DOCTORADO": "N/A",
+        "POSDOCTORADO": "N/A",
+        "INVESTIGACION_2024": "N/A",
+        "ORIGEN_DE_VINCULACION": "Parágrafo 2...",
+        "ACTO_ADMINISTRATIVO_DE_VINCULACION": "Resolución DT-11-010...",
+        "CORREO_INSTITUCIONAL": "abelabel@esap.edu.co",
+        "CORREO_PERSONAL": "abelantonio98@gmail.com",
+        "TELEFONO": "6671750",
+        "ULTIMA_EVALUACION": "Excelente 2024-1",
+        "DEDICACION": "Tiempo Completo",
+        "SITUACION_ADMINISTRATIVA": "No Aplica",
+        "INICIO_DE_VINCULACION": "8/2/2024",
+        "FIN_DE_VINCULACION": "20/12/2024",
+        "PUNTAJE_SALARIAL": "351.85"
+      },
+      "5711867": {
+        "DOCUMENTO_DE_IDENTIDAD": "5711867",
+        "NOMBRE_Y_APELLIDO": "ADRIANA MARCELA OSORIO LOPEZ",
+        ...
+      }
+    },
+    "meta": {
+      "total_docentes": 256,
+      "estructura": "objeto plano con cédulas como claves",
+      "uuid": "9dc980df-40a3-42b7-a4c8-3d2e231e9aa0",
+      "version": "2.0"
+    }
+  }
+}
+```
+
+**Códigos de error:**
+- `404`: Índice docente no existe (debe cargar primero `ListadoGeneralDocente.csv`)
+- `500`: Error al obtener el índice
+
+**Ejemplo cURL:**
+```bash
+curl -X GET http://localhost:3000/api/v2/listados/indice
+```
+
+**Handlers/Services:**
+- `FileHandlers::getIndiceDocente()`
+- `OpenKM::findArchivo()` para buscar archivo
+- `OpenKM::getArchivo()` para obtener contenido
+
+**Ubicación en OpenKM:**
+- Ruta: `/okm:root/RUND/DOCUMENTOS/LISTADOS/INDICE_DOCENTE/indice_docente.json`
+
+**Características:**
+- Estructura plana con cédulas como claves para búsqueda O(1)
+- Generación automática al cargar `ListadoGeneralDocente.csv`
+- Merge inteligente que preserva datos existentes en actualizaciones
+- Versionado automático en OpenKM
+
+**Uso desde el Frontend:**
+```typescript
+// Obtener índice completo
+const response = await fetch('/api/v2/listados/indice');
+const { data } = await response.json();
+const indice = data.indice;
+
+// Búsqueda rápida por cédula (O(1))
+const docente = indice['479678'];
+
+// Generar opciones para autocomplete
+const opciones = Object.entries(indice).map(([cedula, datos]) => ({
+  value: cedula,
+  label: `${cedula} - ${datos.NOMBRE_Y_APELLIDO}`
+}));
+```
+
+**Documentación relacionada:**
+- Ver [11_INDICE_DOCENTE.md](11_INDICE_DOCENTE.md) para documentación completa del índice docente
+- Ver [12_ENDPOINT_INDICE_DOCENTE.md](12_ENDPOINT_INDICE_DOCENTE.md) para ejemplos de uso detallados
 
 ---
 
@@ -1961,7 +2204,7 @@ curl -X POST http://localhost:3000/api/v2/ai/extraer \
 | 19 | POST | `/api/v2/archivos/subir` | ArchivosController::subir | FileHandlers::postFile | Subir archivo (firma/documento) |
 | 20 | GET | `/api/v2/archivos/datos/{nombre}` | ArchivosController::getDatos | OpenKM::getDataFile | Obtener archivo JSON |
 | 21 | GET | `/api/v2/archivos/imagenes/{nombre}` | ArchivosController::getImagen | OpenKM::getImageFile | Obtener imagen |
-| 22 | GET | `/api/v2/archivos/{uuid}` | ArchivosController::show | - | Obtener archivo por UUID (501) |
+| 22 | GET | `/api/v2/archivos/{uuid}` | ArchivosController::show | OpenKM::getArchivo | Descargar archivo por UUID (inline) |
 | 23 | DELETE | `/api/v2/archivos/{uuid}` | ArchivosController::delete | OpenKM::borraArchivo | Eliminar archivo |
 | 24 | DELETE | `/api/v2/archivos/temp/limpiar` | ArchivosController::limpiarTemp | FileHandlers::deleteReport | Limpiar archivos temporales |
 | 25 | DELETE | `/api/v2/archivos/papelera` | ArchivosController::vaciarPapelera | OpenKM::borraPapelera | Vaciar papelera OpenKM |
@@ -1969,12 +2212,13 @@ curl -X POST http://localhost:3000/api/v2/ai/extraer \
 | 26 | POST | `/api/v2/listados/cargar` | ListadosController::cargar | FileHandlers::loadList | Cargar listado Excel/CSV |
 | 27 | GET | `/api/v2/listados/datos` | ListadosController::getDatos | DataHandlers::getCsvData | Obtener datos de listados |
 | 28 | GET | `/api/v2/listados/csv` | ListadosController::getCsv | DataHandlers::getCsvData | Obtener CSV específico |
+| 29 | GET | `/api/v2/listados/indice` | ListadosController::getIndice | FileHandlers::getIndiceDocente | Obtener índice docente completo |
 | **FIRMAS** |
-| 29 | GET | `/api/v2/firmas/lista` | FirmasController::getLista | FirmasHandlers::getFirmas | Listar firmas disponibles |
-| 30 | GET | `/api/v2/firmas/{uuid}` | FirmasController::show | - | Obtener firma por UUID (501) |
-| 31 | POST | `/api/v2/firmas/subir` | FirmasController::subir | FileHandlers::postFile | Subir nueva firma |
+| 30 | GET | `/api/v2/firmas/lista` | FirmasController::getLista | FirmasHandlers::getFirmas | Listar firmas disponibles |
+| 31 | GET | `/api/v2/firmas/{uuid}` | FirmasController::show | - | Obtener firma por UUID (501) |
+| 32 | POST | `/api/v2/firmas/subir` | FirmasController::subir | FileHandlers::postFile | Subir nueva firma |
 | **AI** |
-| 32 | POST | `/api/v2/ai/extraer` | AIController::extraer | AIHandlers::extraeDatos | Extraer datos con IA/OCR |
+| 33 | POST | `/api/v2/ai/extraer` | AIController::extraer | AIHandlers::extraeDatos | Extraer datos con IA/OCR |
 
 ---
 
