@@ -2,7 +2,7 @@
 
 > **Versión:** 2.0
 > **Autor:** Oliver Castelblanco Martínez (oliver.castelblanco@esap.edu.co)
-> **Total de Endpoints:** 28
+> **Total de Endpoints:** 29
 > **Arquitectura:** RESTful con Controllers modulares (PSR-4)
 
 ---
@@ -12,7 +12,7 @@
 1. [Sistema (7 endpoints)](#1-sistema-7-endpoints)
 2. [Certificados (3 endpoints)](#2-certificados-3-endpoints)
 3. [Categorías (2 endpoints)](#3-categorías-2-endpoints)
-4. [Profesores (3 endpoints)](#4-profesores-3-endpoints)
+4. [Profesores (4 endpoints)](#4-profesores-4-endpoints)
 5. [Documentos (3 endpoints)](#5-documentos-3-endpoints)
 6. [Archivos (7 endpoints)](#6-archivos-7-endpoints)
 7. [Listados (4 endpoints)](#7-listados-4-endpoints)
@@ -652,7 +652,7 @@ curl -X GET "http://localhost:3000/api/v2/categorias/cruce/abc-123-def-456/xyz-7
 
 ---
 
-## 4. Profesores (3 endpoints)
+## 4. Profesores (4 endpoints)
 
 ### 4.1 GET /api/v2/profesores/{cedula}
 
@@ -788,7 +788,126 @@ curl -X GET http://localhost:3000/api/v2/profesores/1234567890/archivos
 
 ---
 
-### 4.3 GET /api/v2/profesores/{cedula}/demografia
+### 4.3 GET /api/v2/profesores/{cedula}/{nombre_archivo}
+
+**Descripción:** Busca un archivo específico dentro de la carpeta del profesor y retorna su UUID junto con sus propiedades. Este endpoint permite obtener rápidamente el UUID de un archivo conociendo solo su nombre y la cédula del profesor.
+
+**Controller:** `ProfesoresController::getArchivoUuid()`
+
+**Parámetros de entrada:**
+- **Path parameters:**
+  - `cedula` (string, requerido): Cédula del profesor (4-20 dígitos)
+  - `nombre_archivo` (string, requerido): Nombre completo del archivo con extensión
+
+**Validaciones:**
+- Cédula es requerida y debe tener entre 4-20 dígitos
+- Nombre de archivo es requerido
+- El archivo debe existir en la carpeta del profesor en OpenKM
+
+**Respuesta exitosa (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "uuid": "16acbc5c-4d9d-4152-a39a-9783a1536943",
+    "nombre_archivo": "1990_1_ESAP.pdf",
+    "cedula": "4080160",
+    "propiedades": {
+      "path": "/okm:root/RUND/DOCENTES/HOJAS_DE_VIDA/4080160/EXPERIENCIA_INVESTIGATIVA/1990_1_ESAP.pdf",
+      "mimeType": "application/pdf",
+      "size": 36868,
+      "created": "2025-11-20T12:18:15.792-05:00",
+      "lastModified": "2025-11-20T12:18:15.792-05:00"
+    },
+    "meta": {
+      "endpoint": "archivo_uuid",
+      "version": "2.0"
+    }
+  }
+}
+```
+
+**Códigos de error:**
+- `400`: Cédula o nombre de archivo faltante, o cédula inválida
+- `404`: Archivo no encontrado en la carpeta del profesor
+- `500`: Error al buscar el archivo
+
+**Ejemplo cURL:**
+```bash
+curl -X GET "http://localhost:3000/api/v2/profesores/4080160/1990_1_ESAP.pdf"
+```
+
+**Ejemplo JavaScript/TypeScript:**
+```typescript
+async function obtenerUuidArchivo(cedula: string, nombreArchivo: string): Promise<string> {
+  const response = await fetch(
+    `/api/v2/profesores/${cedula}/${encodeURIComponent(nombreArchivo)}`
+  );
+
+  if (!response.ok) {
+    throw new Error('Archivo no encontrado');
+  }
+
+  const data = await response.json();
+  return data.data.uuid;
+}
+
+// Uso
+const uuid = await obtenerUuidArchivo('4080160', '1990_1_ESAP.pdf');
+console.log('UUID:', uuid); // 16acbc5c-4d9d-4152-a39a-9783a1536943
+
+// Ahora puedes descargar el archivo usando el endpoint de archivos
+const archivoBlob = await fetch(`/api/v2/archivos/${uuid}`).then(r => r.blob());
+```
+
+**Handlers/Services:**
+- `OpenKM::findArchivo()` para buscar el archivo por nombre
+- `OpenKM::consulta("document/getProperties")` para obtener propiedades
+
+**Ruta de búsqueda en OpenKM:**
+- Base: `/okm:root/RUND/DOCENTES/HOJAS_DE_VIDA/{cedula}/`
+- Búsqueda recursiva: Sí (encuentra archivos en subcarpetas)
+
+**Características:**
+- **Búsqueda recursiva**: Encuentra el archivo incluso si está en subcarpetas de categorías
+- **Información completa**: Retorna UUID y propiedades del archivo (path, mimeType, size, fechas)
+- **Integración perfecta**: El UUID puede usarse directamente con `GET /api/v2/archivos/{uuid}`
+- **Case-sensitive**: El nombre del archivo debe coincidir exactamente
+
+**Casos de uso:**
+1. **Descarga directa por nombre**: Obtener UUID y luego descargar el archivo
+2. **Verificación de existencia**: Comprobar si un archivo existe en la carpeta del profesor
+3. **Obtener metadatos**: Conocer tamaño, fecha de creación, tipo MIME
+4. **Integración con sistemas externos**: Facilita el acceso a archivos específicos
+
+**Flujo de trabajo típico:**
+```typescript
+// 1. Obtener UUID del archivo por nombre
+const { data } = await fetch(
+  '/api/v2/profesores/4080160/1990_1_ESAP.pdf'
+).then(r => r.json());
+
+const uuid = data.uuid;
+const mimeType = data.propiedades.mimeType;
+const size = data.propiedades.size;
+
+// 2. Descargar el archivo usando el UUID
+const blob = await fetch(`/api/v2/archivos/${uuid}`).then(r => r.blob());
+
+// 3. Usar el archivo (mostrar, descargar, etc.)
+const url = URL.createObjectURL(blob);
+window.open(url, '_blank');
+```
+
+**Notas importantes:**
+1. El nombre del archivo debe incluir la extensión completa
+2. La búsqueda es sensible a mayúsculas/minúsculas
+3. Si hay múltiples archivos con el mismo nombre, retorna el primero encontrado
+4. El archivo puede estar en cualquier subcarpeta dentro de la carpeta del profesor
+
+---
+
+### 4.4 GET /api/v2/profesores/{cedula}/demografia
 
 **Descripción:** Obtiene solo los datos demográficos del profesor (categorías asignadas).
 
@@ -2195,30 +2314,31 @@ curl -X POST http://localhost:3000/api/v2/ai/extraer \
 | **PROFESORES** |
 | 13 | GET | `/api/v2/profesores/{cedula}` | ProfesoresController::show | DataHandlers::getInfoProfesor | Información completa del profesor |
 | 14 | GET | `/api/v2/profesores/{cedula}/archivos` | ProfesoresController::getArchivos | DataHandlers::getInfoProfesor | Solo archivos del profesor |
-| 15 | GET | `/api/v2/profesores/{cedula}/demografia` | ProfesoresController::getDemografia | DataHandlers::getInfoProfesor | Solo datos demográficos |
+| 15 | GET | `/api/v2/profesores/{cedula}/{nombre_archivo}` | ProfesoresController::getArchivoUuid | OpenKM::findArchivo | Obtener UUID de archivo por nombre |
+| 16 | GET | `/api/v2/profesores/{cedula}/demografia` | ProfesoresController::getDemografia | DataHandlers::getInfoProfesor | Solo datos demográficos |
 | **DOCUMENTOS** |
-| 16 | GET | `/api/v2/documentos/plantillas` | DocumentosController::getPlantillas | - | Plantillas de documentos |
-| 17 | POST | `/api/v2/documentos/generar` | DocumentosController::generar | FileHandlers::getConsultaFile | Generar documento personalizado |
-| 18 | POST | `/api/v2/documentos/exportar` | DocumentosController::exportar | FileHandlers::getConsultaFile | Exportar consulta XLSX/PDF |
+| 17 | GET | `/api/v2/documentos/plantillas` | DocumentosController::getPlantillas | - | Plantillas de documentos |
+| 18 | POST | `/api/v2/documentos/generar` | DocumentosController::generar | FileHandlers::getConsultaFile | Generar documento personalizado |
+| 19 | POST | `/api/v2/documentos/exportar` | DocumentosController::exportar | FileHandlers::getConsultaFile | Exportar consulta XLSX/PDF |
 | **ARCHIVOS** |
-| 19 | POST | `/api/v2/archivos/subir` | ArchivosController::subir | FileHandlers::postFile | Subir archivo (firma/documento) |
-| 20 | GET | `/api/v2/archivos/datos/{nombre}` | ArchivosController::getDatos | OpenKM::getDataFile | Obtener archivo JSON |
-| 21 | GET | `/api/v2/archivos/imagenes/{nombre}` | ArchivosController::getImagen | OpenKM::getImageFile | Obtener imagen |
-| 22 | GET | `/api/v2/archivos/{uuid}` | ArchivosController::show | OpenKM::getArchivo | Descargar archivo por UUID (inline) |
-| 23 | DELETE | `/api/v2/archivos/{uuid}` | ArchivosController::delete | OpenKM::borraArchivo | Eliminar archivo |
-| 24 | DELETE | `/api/v2/archivos/temp/limpiar` | ArchivosController::limpiarTemp | FileHandlers::deleteReport | Limpiar archivos temporales |
-| 25 | DELETE | `/api/v2/archivos/papelera` | ArchivosController::vaciarPapelera | OpenKM::borraPapelera | Vaciar papelera OpenKM |
+| 20 | POST | `/api/v2/archivos/subir` | ArchivosController::subir | FileHandlers::postFile | Subir archivo (firma/documento) |
+| 21 | GET | `/api/v2/archivos/datos/{nombre}` | ArchivosController::getDatos | OpenKM::getDataFile | Obtener archivo JSON |
+| 22 | GET | `/api/v2/archivos/imagenes/{nombre}` | ArchivosController::getImagen | OpenKM::getImageFile | Obtener imagen |
+| 23 | GET | `/api/v2/archivos/{uuid}` | ArchivosController::show | OpenKM::getArchivo | Descargar archivo por UUID (inline) |
+| 24 | DELETE | `/api/v2/archivos/{uuid}` | ArchivosController::delete | OpenKM::borraArchivo | Eliminar archivo |
+| 25 | DELETE | `/api/v2/archivos/temp/limpiar` | ArchivosController::limpiarTemp | FileHandlers::deleteReport | Limpiar archivos temporales |
+| 26 | DELETE | `/api/v2/archivos/papelera` | ArchivosController::vaciarPapelera | OpenKM::borraPapelera | Vaciar papelera OpenKM |
 | **LISTADOS** |
-| 26 | POST | `/api/v2/listados/cargar` | ListadosController::cargar | FileHandlers::loadList | Cargar listado Excel/CSV |
-| 27 | GET | `/api/v2/listados/datos` | ListadosController::getDatos | DataHandlers::getCsvData | Obtener datos de listados |
-| 28 | GET | `/api/v2/listados/csv` | ListadosController::getCsv | DataHandlers::getCsvData | Obtener CSV específico |
-| 29 | GET | `/api/v2/listados/indice` | ListadosController::getIndice | FileHandlers::getIndiceDocente | Obtener índice docente completo |
+| 27 | POST | `/api/v2/listados/cargar` | ListadosController::cargar | FileHandlers::loadList | Cargar listado Excel/CSV |
+| 28 | GET | `/api/v2/listados/datos` | ListadosController::getDatos | DataHandlers::getCsvData | Obtener datos de listados |
+| 29 | GET | `/api/v2/listados/csv` | ListadosController::getCsv | DataHandlers::getCsvData | Obtener CSV específico |
+| 30 | GET | `/api/v2/listados/indice` | ListadosController::getIndice | FileHandlers::getIndiceDocente | Obtener índice docente completo |
 | **FIRMAS** |
-| 30 | GET | `/api/v2/firmas/lista` | FirmasController::getLista | FirmasHandlers::getFirmas | Listar firmas disponibles |
-| 31 | GET | `/api/v2/firmas/{uuid}` | FirmasController::show | - | Obtener firma por UUID (501) |
-| 32 | POST | `/api/v2/firmas/subir` | FirmasController::subir | FileHandlers::postFile | Subir nueva firma |
+| 31 | GET | `/api/v2/firmas/lista` | FirmasController::getLista | FirmasHandlers::getFirmas | Listar firmas disponibles |
+| 32 | GET | `/api/v2/firmas/{uuid}` | FirmasController::show | - | Obtener firma por UUID (501) |
+| 33 | POST | `/api/v2/firmas/subir` | FirmasController::subir | FileHandlers::postFile | Subir nueva firma |
 | **AI** |
-| 33 | POST | `/api/v2/ai/extraer` | AIController::extraer | AIHandlers::extraeDatos | Extraer datos con IA/OCR |
+| 34 | POST | `/api/v2/ai/extraer` | AIController::extraer | AIHandlers::extraeDatos | Extraer datos con IA/OCR |
 
 ---
 

@@ -96,6 +96,73 @@ class ProfesoresController extends BaseController
     }
 
     /**
+     * GET /api/v2/profesores/{cedula}/{nombre_archivo}
+     * Busca un archivo específico dentro de la carpeta del profesor y retorna su UUID
+     *
+     * Este endpoint permite obtener el UUID de un archivo conociendo solo su nombre
+     * dentro de la carpeta de hojas de vida del profesor.
+     *
+     * @param array $params Debe incluir 'cedula' y 'nombre_archivo'
+     * @return array Respuesta con el UUID del archivo o error si no se encuentra
+     */
+    public function getArchivoUuid(array $params = []): array
+    {
+        if (!isset($params['cedula']) || !isset($params['nombre_archivo'])) {
+            return $this->errorResponse('Cédula y nombre del archivo son requeridos', 400);
+        }
+
+        $cedula = $params['cedula'];
+        $nombreArchivo = $params['nombre_archivo'];
+
+        // Validar formato de cédula
+        if (!preg_match('/^\d{4,20}$/', $cedula)) {
+            return $this->errorResponse('La cédula debe tener entre 4 y 20 dígitos', 400);
+        }
+
+        try {
+            // Construir la ruta de búsqueda en OpenKM
+            $path = \RUND\Config\Config::TAX_HOJAS . $cedula;
+
+            // Buscar el archivo por nombre en la carpeta del profesor
+            $uuid = \RUND\Core\OpenKM::findArchivo($nombreArchivo, $path);
+
+            if (!$uuid) {
+                return $this->errorResponse(
+                    "Archivo '$nombreArchivo' no encontrado en la carpeta del profesor con cédula $cedula",
+                    404
+                );
+            }
+
+            // Obtener propiedades adicionales del archivo
+            $propsResponse = \RUND\Core\OpenKM::consulta("document/getProperties?docId=" . urlencode($uuid));
+            $properties = json_decode($propsResponse, true);
+
+            return $this->successResponse([
+                'uuid' => $uuid,
+                'nombre_archivo' => $nombreArchivo,
+                'cedula' => $cedula,
+                'propiedades' => [
+                    'path' => $properties['path'] ?? null,
+                    'mimeType' => $properties['mimeType'] ?? null,
+                    'size' => $properties['actualVersion']['size'] ?? null,
+                    'created' => $properties['created'] ?? null,
+                    'lastModified' => $properties['lastModified'] ?? null
+                ],
+                'meta' => [
+                    'endpoint' => 'archivo_uuid',
+                    'version' => '2.0'
+                ]
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->errorResponse(
+                'Error al buscar el archivo: ' . $e->getMessage(),
+                500
+            );
+        }
+    }
+
+    /**
      * Calcula estadísticas de archivos por categoría
      */
     private function calcularEstadisticasArchivos(array $archivos): array

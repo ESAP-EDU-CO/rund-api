@@ -70,6 +70,8 @@ function setupRoutesV2(Router $router): void
 			$router->get('/{cedula}', [ProfesoresController::class, 'show']);
 			$router->get('/{cedula}/archivos', [ProfesoresController::class, 'getArchivos']);
 			$router->get('/{cedula}/demografia', [ProfesoresController::class, 'getDemografia']);
+			// Ruta específica con nombre de archivo debe ir después de rutas fijas
+			$router->get('/{cedula}/{nombre_archivo}', [ProfesoresController::class, 'getArchivoUuid']);
 		});
 
 		// --- Documentos ---
