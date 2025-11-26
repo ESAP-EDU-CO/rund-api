@@ -808,21 +808,19 @@ curl -X GET http://localhost:3000/api/v2/profesores/1234567890/archivos
 ```json
 {
   "success": true,
-  "data": {
-    "uuid": "16acbc5c-4d9d-4152-a39a-9783a1536943",
-    "nombre_archivo": "1990_1_ESAP.pdf",
-    "cedula": "4080160",
-    "propiedades": {
-      "path": "/okm:root/RUND/DOCENTES/HOJAS_DE_VIDA/4080160/EXPERIENCIA_INVESTIGATIVA/1990_1_ESAP.pdf",
-      "mimeType": "application/pdf",
-      "size": 36868,
-      "created": "2025-11-20T12:18:15.792-05:00",
-      "lastModified": "2025-11-20T12:18:15.792-05:00"
-    },
-    "meta": {
-      "endpoint": "archivo_uuid",
-      "version": "2.0"
-    }
+  "uuid": "16acbc5c-4d9d-4152-a39a-9783a1536943",
+  "nombre_archivo": "1990_1_ESAP.pdf",
+  "cedula": "4080160",
+  "propiedades": {
+    "path": "/okm:root/RUND/DOCENTES/HOJAS_DE_VIDA/4080160/EXPERIENCIA_INVESTIGATIVA/1990_1_ESAP.pdf",
+    "mimeType": "application/pdf",
+    "size": 36868,
+    "created": "2025-11-20T12:18:15.792-05:00",
+    "lastModified": "2025-11-20T12:18:15.792-05:00"
+  },
+  "meta": {
+    "endpoint": "archivo_uuid",
+    "version": "2.0"
   }
 }
 ```
@@ -849,15 +847,22 @@ async function obtenerUuidArchivo(cedula: string, nombreArchivo: string): Promis
   }
 
   const data = await response.json();
-  return data.data.uuid;
+  return data.uuid;
 }
 
-// Uso
-const uuid = await obtenerUuidArchivo('4080160', '1990_1_ESAP.pdf');
-console.log('UUID:', uuid); // 16acbc5c-4d9d-4152-a39a-9783a1536943
+// Uso con archivo sin espacios
+const uuid1 = await obtenerUuidArchivo('4080160', '1990_1_ESAP.pdf');
+console.log('UUID:', uuid1); // 16acbc5c-4d9d-4152-a39a-9783a1536943
+
+// Uso con archivo con espacios y caracteres especiales
+const uuid2 = await obtenerUuidArchivo(
+  '4080160',
+  '1.4.1 DOCTORADO_UNIVERSIDAD_DE_SANTIAGO_DE_COMPOSTELA.pdf'
+);
+console.log('UUID:', uuid2); // 52a08ebd-7d9b-4c4f-a596-b5392061ffec
 
 // Ahora puedes descargar el archivo usando el endpoint de archivos
-const archivoBlob = await fetch(`/api/v2/archivos/${uuid}`).then(r => r.blob());
+const archivoBlob = await fetch(`/api/v2/archivos/${uuid1}`).then(r => r.blob());
 ```
 
 **Handlers/Services:**
@@ -883,7 +888,7 @@ const archivoBlob = await fetch(`/api/v2/archivos/${uuid}`).then(r => r.blob());
 **Flujo de trabajo típico:**
 ```typescript
 // 1. Obtener UUID del archivo por nombre
-const { data } = await fetch(
+const data = await fetch(
   '/api/v2/profesores/4080160/1990_1_ESAP.pdf'
 ).then(r => r.json());
 
@@ -904,6 +909,7 @@ window.open(url, '_blank');
 2. La búsqueda es sensible a mayúsculas/minúsculas
 3. Si hay múltiples archivos con el mismo nombre, retorna el primero encontrado
 4. El archivo puede estar en cualquier subcarpeta dentro de la carpeta del profesor
+5. **Codificación URL**: Los nombres de archivo con espacios o caracteres especiales deben codificarse con `encodeURIComponent()`. El router decodifica automáticamente los parámetros
 
 ---
 
