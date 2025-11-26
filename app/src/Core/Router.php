@@ -190,7 +190,8 @@ class Router
 					$matchIndex = 1;
 					foreach ($pathParts as $part) {
 						if (preg_match('/^{(\w+)}$/', $part, $paramMatch)) {
-							$params[$paramMatch[1]] = $matches[$matchIndex++];
+							// Decodificar automáticamente los parámetros de URL
+							$params[$paramMatch[1]] = urldecode($matches[$matchIndex++]);
 						}
 					}
 				}
