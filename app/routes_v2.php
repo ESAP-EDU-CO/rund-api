@@ -93,6 +93,7 @@ function setupRoutesV2(Router $router): void
 			$router->delete('/papelera', [ArchivosController::class, 'vaciarPapelera']);
 			// Rutas genéricas van al final
 			$router->get('/{uuid}', [ArchivosController::class, 'show']);
+			$router->post('/{uuid}/actualizar', [ArchivosController::class, 'update']);
 			$router->delete('/{uuid}', [ArchivosController::class, 'delete']);
 		});
 

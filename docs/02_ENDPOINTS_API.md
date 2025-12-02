@@ -2,7 +2,7 @@
 
 > **Versión:** 2.0
 > **Autor:** Oliver Castelblanco Martínez (oliver.castelblanco@esap.edu.co)
-> **Total de Endpoints:** 29
+> **Total de Endpoints:** 30
 > **Arquitectura:** RESTful con Controllers modulares (PSR-4)
 
 ---
@@ -14,7 +14,7 @@
 3. [Categorías (2 endpoints)](#3-categorías-2-endpoints)
 4. [Profesores (4 endpoints)](#4-profesores-4-endpoints)
 5. [Documentos (3 endpoints)](#5-documentos-3-endpoints)
-6. [Archivos (7 endpoints)](#6-archivos-7-endpoints)
+6. [Archivos (8 endpoints)](#6-archivos-8-endpoints)
 7. [Listados (4 endpoints)](#7-listados-4-endpoints)
 8. [Firmas (3 endpoints)](#8-firmas-3-endpoints)
 9. [AI (1 endpoint)](#9-ai-1-endpoint)
@@ -1129,7 +1129,7 @@ curl -X POST http://localhost:3000/api/v2/documentos/exportar \
 
 ---
 
-## 6. Archivos (7 endpoints)
+## 6. Archivos (8 endpoints)
 
 ### 6.1 POST /api/v2/archivos/subir
 
@@ -1499,7 +1499,232 @@ const response = await fetch(`/api/v2/archivos/${uuid}`);
 
 ---
 
-### 6.5 DELETE /api/v2/archivos/{uuid}
+### 6.5 POST /api/v2/archivos/{uuid}/actualizar
+
+**Descripción:** Reemplaza un archivo existente con una nueva versión usando el sistema de versionamiento de OpenKM (checkout/checkin). El archivo original se mantiene con el mismo nombre y path, pero su contenido se actualiza y se guarda el comentario en el historial de versiones.
+
+**Controller:** `ArchivosController::update()`
+
+**Método HTTP:** `POST` (se usa POST en lugar de PUT porque PHP no soporta `$_FILES` con PUT)
+
+**Parámetros de entrada:**
+- **Path parameters:**
+  - `uuid` (string, requerido): UUID del archivo a actualizar
+- **Form data (multipart/form-data):**
+  - `file` (File, requerido): El nuevo archivo que reemplazará al existente
+  - `nombre_archivo` (string, requerido): Nombre del archivo original (debe coincidir)
+  - `comment` (string, opcional): Comentario para el historial de versiones. Por defecto: "Actualización YYYY-MM-DD HH:MM:SS"
+
+**Validaciones:**
+- UUID es requerido
+- El archivo debe ser válido (sin errores de upload)
+- El nombre_archivo es requerido
+- El documento debe existir en OpenKM
+
+**Flujo de operación:**
+1. Valida parámetros (uuid, file, nombre_archivo)
+2. Obtiene propiedades del documento original desde OpenKM
+3. Hace checkout del documento (lo bloquea para edición)
+4. Sube el nuevo contenido
+5. Hace checkin con el comentario (guarda nueva versión y desbloquea)
+6. Obtiene propiedades actualizadas del documento
+7. Retorna respuesta con información completa
+
+**Respuesta exitosa (200):**
+```json
+{
+  "success": true,
+  "uuid": "16acbc5c-4d9d-4152-a39a-9783a1536943",
+  "nombre_archivo": "1990_1_ESAP.pdf",
+  "comentario": "Actualización de documento con versión de alta calidad",
+  "version": "1.2",
+  "propiedades": {
+    "path": "/okm:root/RUND/DOCENTES/HOJAS_DE_VIDA/4080160/EXPERIENCIA_INVESTIGATIVA/1990_1_ESAP.pdf",
+    "mimeType": "application/pdf",
+    "size": 2048576,
+    "created": "2025-11-20T12:18:15.792-05:00",
+    "lastModified": "2025-12-02T17:46:02.079-05:00",
+    "versionLabel": "1.2",
+    "author": "okmAdmin"
+  },
+  "meta": {
+    "endpoint": "archivo_update",
+    "operacion": "reemplazar_version",
+    "version": "2.0",
+    "timestamp": "2025-12-02T17:46:03-05:00"
+  }
+}
+```
+
+**Códigos de error:**
+- `400`: UUID faltante, archivo faltante, o nombre_archivo faltante
+- `404`: Documento no encontrado en OpenKM
+- `500`: Error al hacer checkout/checkin o al procesar actualización
+
+**Ejemplo cURL:**
+```bash
+curl -X POST "http://localhost:3000/api/v2/archivos/16acbc5c-4d9d-4152-a39a-9783a1536943/actualizar" \
+  -F "file=@documento_actualizado.pdf" \
+  -F "nombre_archivo=1990_1_ESAP.pdf" \
+  -F "comment=Reemplazar con versión de alta calidad"
+```
+
+**Ejemplo JavaScript/TypeScript:**
+```typescript
+async function actualizarArchivo(
+  uuid: string,
+  archivo: File,
+  nombreArchivo: string,
+  comentario?: string
+): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', archivo);
+  formData.append('nombre_archivo', nombreArchivo);
+  if (comentario) {
+    formData.append('comment', comentario);
+  }
+
+  const response = await fetch(
+    `/api/v2/archivos/${uuid}/actualizar`,
+    {
+      method: 'POST',
+      body: formData
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error('Error al actualizar archivo');
+  }
+
+  return await response.json();
+}
+
+// Uso
+const archivoInput = document.getElementById('fileInput') as HTMLInputElement;
+const archivo = archivoInput.files[0];
+
+const resultado = await actualizarArchivo(
+  '16acbc5c-4d9d-4152-a39a-9783a1536943',
+  archivo,
+  '1990_1_ESAP.pdf',
+  'Reemplazar con versión escaneada en alta resolución'
+);
+
+console.log('Nueva versión:', resultado.version);
+console.log('Fecha de modificación:', resultado.propiedades.lastModified);
+```
+
+**Uso desde Angular:**
+```typescript
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class ArchivosService {
+  constructor(private http: HttpClient) {}
+
+  actualizarArchivo(
+    uuid: string,
+    archivo: File,
+    nombreArchivo: string,
+    comentario?: string
+  ): Observable<any> {
+    const formData = new FormData();
+    formData.append('file', archivo);
+    formData.append('nombre_archivo', nombreArchivo);
+    if (comentario) {
+      formData.append('comment', comentario);
+    }
+
+    return this.http.post(
+      `/api/v2/archivos/${uuid}/actualizar`,
+      formData
+    );
+  }
+}
+
+// Componente
+export class DocumentoComponent {
+  constructor(private archivosService: ArchivosService) {}
+
+  onFileSelected(event: any, uuid: string, nombreArchivo: string) {
+    const archivo: File = event.target.files[0];
+
+    this.archivosService
+      .actualizarArchivo(uuid, archivo, nombreArchivo, 'Actualización manual')
+      .subscribe({
+        next: (resultado) => {
+          console.log('Archivo actualizado:', resultado);
+          this.mostrarMensaje('Archivo actualizado exitosamente');
+        },
+        error: (error) => {
+          console.error('Error:', error);
+          this.mostrarError('Error al actualizar archivo');
+        }
+      });
+  }
+}
+```
+
+**Handlers/Services:**
+- `OpenKM::consulta("document/getProperties")` para obtener path original
+- `OpenKM::nuevaVersion()` que internamente ejecuta:
+  - `OpenKM::consulta("document/checkout")` para bloquear el documento
+  - `OpenKM::consulta("document/isCheckedOut")` para verificar el checkout
+  - `OpenKM::documentAction("checkin")` para subir nueva versión y desbloquear
+
+**Características:**
+- **Versionamiento automático**: Usa el sistema de versiones de OpenKM (checkout/checkin)
+- **Historial completo**: El comentario se guarda en el historial de versiones
+- **Sin cambio de nombre**: Mantiene el mismo nombre y path del archivo original
+- **Reemplazo de tipo MIME**: Permite reemplazar un JPG con un PDF, por ejemplo
+- **Sin validación de tamaño**: No valida tamaño (se podría agregar en el futuro)
+- **Bloqueo automático**: El documento se bloquea durante la actualización
+
+**Casos de uso:**
+1. **Mejorar calidad**: Reemplazar un escaneo de baja calidad con uno de alta calidad
+2. **Cambiar formato**: Sustituir una imagen JPG por un PDF vectorial
+3. **Corregir errores**: Actualizar un documento que tenía errores o información incompleta
+4. **Actualizar información**: Renovar certificados o documentos con fechas de vencimiento
+
+**Flujo de trabajo típico:**
+```typescript
+// 1. Usuario selecciona archivo existente y sube uno nuevo
+const uuidExistente = '16acbc5c-4d9d-4152-a39a-9783a1536943';
+const nombreOriginal = '1990_1_ESAP.pdf';
+const archivoNuevo = inputFile.files[0]; // Archivo del <input type="file">
+
+// 2. Actualizar con comentario descriptivo
+const resultado = await actualizarArchivo(
+  uuidExistente,
+  archivoNuevo,
+  nombreOriginal,
+  'Reemplazar escaneo de baja calidad con PDF de alta resolución'
+);
+
+// 3. Verificar el resultado
+console.log('Versión anterior → nueva:', resultado.version);
+console.log('Tamaño actualizado:', resultado.propiedades.size, 'bytes');
+console.log('Última modificación:', resultado.propiedades.lastModified);
+
+// 4. Opcionalmente, recargar el documento en la interfaz
+const blob = await fetch(`/api/v2/archivos/${uuidExistente}`).then(r => r.blob());
+mostrarDocumentoEnVisor(blob);
+```
+
+**Notas importantes:**
+1. Se usa POST en lugar de PUT por limitaciones de PHP con $_FILES
+2. El nombre del archivo debe coincidir con el original para mantener la consistencia
+3. OpenKM mantiene un historial completo de versiones con comentarios
+4. El documento se bloquea automáticamente durante la actualización (checkout)
+5. No hay validación de tipo MIME, permitiendo cambios de formato (JPG → PDF)
+6. El autor de la nueva versión será el usuario configurado en OpenKM (típicamente okmAdmin)
+
+---
+
+### 6.6 DELETE /api/v2/archivos/{uuid}
 
 **Descripción:** Elimina un archivo por UUID de OpenKM.
 
@@ -2331,20 +2556,21 @@ curl -X POST http://localhost:3000/api/v2/ai/extraer \
 | 21 | GET | `/api/v2/archivos/datos/{nombre}` | ArchivosController::getDatos | OpenKM::getDataFile | Obtener archivo JSON |
 | 22 | GET | `/api/v2/archivos/imagenes/{nombre}` | ArchivosController::getImagen | OpenKM::getImageFile | Obtener imagen |
 | 23 | GET | `/api/v2/archivos/{uuid}` | ArchivosController::show | OpenKM::getArchivo | Descargar archivo por UUID (inline) |
-| 24 | DELETE | `/api/v2/archivos/{uuid}` | ArchivosController::delete | OpenKM::borraArchivo | Eliminar archivo |
-| 25 | DELETE | `/api/v2/archivos/temp/limpiar` | ArchivosController::limpiarTemp | FileHandlers::deleteReport | Limpiar archivos temporales |
-| 26 | DELETE | `/api/v2/archivos/papelera` | ArchivosController::vaciarPapelera | OpenKM::borraPapelera | Vaciar papelera OpenKM |
+| 24 | POST | `/api/v2/archivos/{uuid}/actualizar` | ArchivosController::update | OpenKM::nuevaVersion | Actualizar archivo (nueva versión) |
+| 25 | DELETE | `/api/v2/archivos/{uuid}` | ArchivosController::delete | OpenKM::borraArchivo | Eliminar archivo |
+| 26 | DELETE | `/api/v2/archivos/temp/limpiar` | ArchivosController::limpiarTemp | FileHandlers::deleteReport | Limpiar archivos temporales |
+| 27 | DELETE | `/api/v2/archivos/papelera` | ArchivosController::vaciarPapelera | OpenKM::borraPapelera | Vaciar papelera OpenKM |
 | **LISTADOS** |
-| 27 | POST | `/api/v2/listados/cargar` | ListadosController::cargar | FileHandlers::loadList | Cargar listado Excel/CSV |
-| 28 | GET | `/api/v2/listados/datos` | ListadosController::getDatos | DataHandlers::getCsvData | Obtener datos de listados |
-| 29 | GET | `/api/v2/listados/csv` | ListadosController::getCsv | DataHandlers::getCsvData | Obtener CSV específico |
-| 30 | GET | `/api/v2/listados/indice` | ListadosController::getIndice | FileHandlers::getIndiceDocente | Obtener índice docente completo |
+| 28 | POST | `/api/v2/listados/cargar` | ListadosController::cargar | FileHandlers::loadList | Cargar listado Excel/CSV |
+| 29 | GET | `/api/v2/listados/datos` | ListadosController::getDatos | DataHandlers::getCsvData | Obtener datos de listados |
+| 30 | GET | `/api/v2/listados/csv` | ListadosController::getCsv | DataHandlers::getCsvData | Obtener CSV específico |
+| 31 | GET | `/api/v2/listados/indice` | ListadosController::getIndice | FileHandlers::getIndiceDocente | Obtener índice docente completo |
 | **FIRMAS** |
-| 31 | GET | `/api/v2/firmas/lista` | FirmasController::getLista | FirmasHandlers::getFirmas | Listar firmas disponibles |
-| 32 | GET | `/api/v2/firmas/{uuid}` | FirmasController::show | - | Obtener firma por UUID (501) |
-| 33 | POST | `/api/v2/firmas/subir` | FirmasController::subir | FileHandlers::postFile | Subir nueva firma |
+| 32 | GET | `/api/v2/firmas/lista` | FirmasController::getLista | FirmasHandlers::getFirmas | Listar firmas disponibles |
+| 33 | GET | `/api/v2/firmas/{uuid}` | FirmasController::show | - | Obtener firma por UUID (501) |
+| 34 | POST | `/api/v2/firmas/subir` | FirmasController::subir | FileHandlers::postFile | Subir nueva firma |
 | **AI** |
-| 34 | POST | `/api/v2/ai/extraer` | AIController::extraer | AIHandlers::extraeDatos | Extraer datos con IA/OCR |
+| 35 | POST | `/api/v2/ai/extraer` | AIController::extraer | AIHandlers::extraeDatos | Extraer datos con IA/OCR |
 
 ---
 

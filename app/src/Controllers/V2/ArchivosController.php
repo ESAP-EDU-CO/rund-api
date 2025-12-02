@@ -149,6 +149,117 @@ class ArchivosController extends BaseController
 	}
 
 	/**
+	 * POST /api/v2/archivos/{uuid}/actualizar
+	 * Reemplaza un archivo existente con una nueva versión usando checkout/checkin
+	 *
+	 * Este endpoint implementa el flujo completo de versionamiento de OpenKM:
+	 * 1. Hace checkout del documento (lo bloquea para edición)
+	 * 2. Sube el nuevo contenido
+	 * 3. Hace checkin con el comentario (guarda nueva versión y desbloquea)
+	 *
+	 * Nota: Se usa POST en lugar de PUT porque PHP no soporta $_FILES con PUT.
+	 *
+	 * @param array $params Parámetros de la ruta, debe incluir 'uuid'
+	 * @return array Respuesta con información del archivo actualizado
+	 */
+	public function update(array $params = []): array
+	{
+		// Validar UUID
+		if (!isset($params['uuid'])) {
+			return $this->errorResponse('UUID es requerido', 400);
+		}
+
+		$uuid = $params['uuid'];
+		$files = $this->getFiles();
+
+		// Validar que se envió un archivo
+		if (!isset($files['file']) || $files['file']['error'] !== UPLOAD_ERR_OK) {
+			return $this->errorResponse('Archivo requerido en campo "file"', 400);
+		}
+
+		// Obtener datos del formulario
+		$nombreArchivo = $_POST['nombre_archivo'] ?? null;
+		$comentario = $_POST['comment'] ?? 'Actualización ' . date('Y-m-d H:i:s');
+
+		// Validar nombre de archivo
+		if (!$nombreArchivo) {
+			return $this->errorResponse('Parámetro "nombre_archivo" requerido', 400);
+		}
+
+		try {
+			// Obtener propiedades del documento original para construir el path
+			$propsResponse = OpenKM::consulta("document/getProperties?docId=" . urlencode($uuid));
+			$properties = json_decode($propsResponse, true);
+
+			if (!$properties || !isset($properties['path'])) {
+				return $this->errorResponse('Documento no encontrado en OpenKM', 404);
+			}
+
+			// Construir el docPath usando el path original pero con el nombre proporcionado
+			$pathOriginal = $properties['path'];
+			$dirPath = dirname($pathOriginal);
+			$docPath = $dirPath . '/' . $nombreArchivo;
+
+			// Preparar el archivo como CURLFile
+			$archivo = $files['file'];
+			$temp = $archivo['tmp_name'];
+			$type = mime_content_type($temp);
+			$fileData = new \CURLFile($temp, $type, $nombreArchivo);
+
+			// Preparar postData para nuevaVersion()
+			$postData = [
+				'docPath' => $docPath,
+				'content' => $fileData
+			];
+
+			// Llamar a nuevaVersion() que hace checkout/checkin automáticamente
+			$response = OpenKM::nuevaVersion($uuid, $comentario, $postData);
+			$resultado = json_decode($response, true);
+
+			// Verificar si hubo error
+			if (isset($resultado['error'])) {
+				return $this->errorResponse(
+					'Error al actualizar archivo: ' . $resultado['error'],
+					500
+				);
+			}
+
+			// Obtener propiedades actualizadas del documento
+			$propsUpdatedResponse = OpenKM::consulta("document/getProperties?docId=" . urlencode($uuid));
+			$propsUpdated = json_decode($propsUpdatedResponse, true);
+
+			// Retornar respuesta exitosa con información completa
+			return $this->successResponse([
+				'uuid' => $uuid,
+				'nombre_archivo' => $nombreArchivo,
+				'comentario' => $comentario,
+				'version' => $propsUpdated['versionLabel'] ?? 'desconocida',
+				'propiedades' => [
+					'path' => $propsUpdated['path'] ?? $docPath,
+					'mimeType' => $propsUpdated['mimeType'] ?? $type,
+					'size' => $propsUpdated['actualVersion']['size'] ?? $archivo['size'],
+					'created' => $propsUpdated['created'] ?? null,
+					'lastModified' => $propsUpdated['lastModified'] ?? date('c'),
+					'versionLabel' => $propsUpdated['versionLabel'] ?? null,
+					'author' => $propsUpdated['actualVersion']['author'] ?? null
+				],
+				'meta' => [
+					'endpoint' => 'archivo_update',
+					'operacion' => 'reemplazar_version',
+					'version' => '2.0',
+					'timestamp' => date('c')
+				]
+			]);
+
+		} catch (\Throwable $e) {
+			return $this->errorResponse(
+				'Error al procesar actualización: ' . $e->getMessage(),
+				500
+			);
+		}
+	}
+
+	/**
 	 * DELETE /api/v2/archivos/{uuid}
 	 * Elimina un archivo por UUID
 	 */
