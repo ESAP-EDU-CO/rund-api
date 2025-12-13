@@ -34,8 +34,11 @@ class Config
   const TEMP_DIR = __DIR__ . "/../../tmp/";
 
   // ============================================================================
-  // SERVICIOS EXTERNOS (AI, OCR)
+  // SERVICIOS EXTERNOS (AUTH, AI, OCR)
   // ============================================================================
+
+  /** @var string URL del servicio rund-auth (autenticación centralizada) */
+  const RUND_AUTH_URL = "http://rund-auth:8080";
 
   /** @var string URL del servicio rund-ai (extracción y análisis) */
   const RUND_AI_URL = "http://rund-ai:8001";

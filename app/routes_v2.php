@@ -16,6 +16,7 @@ declare(strict_types=1);
 use RUND\Core\Router;
 use RUND\Controllers\V2\{
 	SystemController,
+	AuthController,
 	CertificadosController,
 	CategoriasController,
 	ProfesoresController,
@@ -50,6 +51,19 @@ function setupRoutesV2(Router $router): void
 			$router->get('/deprecation', [SystemController::class, 'getDeprecationStatus']);
 			$router->get('/docs', [SystemController::class, 'getDocs']);
 			$router->get('/swagger-ui', [SystemController::class, 'getSwaggerUI']);
+		});
+
+		// --- Autenticación (BFF para rund-auth) ---
+		$router->group('/auth', function (Router $router) {
+			// Endpoints públicos (no requieren autenticación)
+			$router->post('/login', [AuthController::class, 'login']);
+			$router->post('/dev/login', [AuthController::class, 'devLogin']); // Solo desarrollo
+			$router->get('/health', [AuthController::class, 'health']);
+
+			// Endpoints protegidos (requieren autenticación)
+			$router->get('/session', [AuthController::class, 'getSession']);
+			$router->post('/logout', [AuthController::class, 'logout']);
+			$router->post('/refresh', [AuthController::class, 'refresh']);
 		});
 
 		// --- Certificados ---
