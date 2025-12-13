@@ -60,9 +60,11 @@ rund-api/
 │   │   │   └── V2/                   # Controllers API v2
 │   │   │       ├── AIController.php
 │   │   │       ├── ArchivosController.php
+│   │   │       ├── AuthController.php ⭐ NUEVO
 │   │   │       ├── CategoriasController.php
 │   │   │       ├── CertificadosController.php
 │   │   │       ├── DocumentosController.php
+│   │   │       ├── DocumentosInternosController.php
 │   │   │       ├── FirmasController.php
 │   │   │       ├── ListadosController.php
 │   │   │       ├── ProfesoresController.php
@@ -94,10 +96,12 @@ rund-api/
 │   │   │   └── ValidationMiddleware.php
 │   │   └── Services/                 # Lógica de negocio
 │   │       ├── AIService.php
+│   │       ├── AuthService.php ⭐ NUEVO
 │   │       ├── CategoriasService.php
 │   │       ├── CertificadosService.php
 │   │       ├── DocumentService.php
 │   │       ├── FirmasService.php
+│   │       ├── JWTValidator.php ⭐ NUEVO
 │   │       ├── LBService.php         # LibreOffice Service
 │   │       ├── QRService.php
 │   │       └── ReportesService.php
@@ -765,9 +769,287 @@ graph TB
 
 ---
 
+## Sistema de Autenticación (v2.1) ⭐ NUEVO
+
+### Arquitectura BFF (Backend-for-Frontend)
+
+RUND-API actúa como **BFF** (Backend-for-Frontend) entre los frontends y el servicio de autenticación centralizado **rund-auth**.
+
+```
+┌──────────────┐
+│  rund-mgp    │  Frontend Angular
+│  (Frontend)  │
+└──────┬───────┘
+       │ HTTP (withCredentials: true)
+       ▼
+┌──────────────────┐
+│    rund-api      │  BFF Layer (este proyecto)
+│   (PHP 8.3)      │
+│                  │
+│ ✅ AuthController   │  → Endpoints /api/v2/auth/*
+│ ✅ AuthService      │  → Comunicación con rund-auth
+│ ✅ JWTValidator     │  → Validación RS256 con JWKS
+│ ✅ AuthMiddleware   │  → Protección de rutas
+└──────┬───────────┘
+       │ HTTP Interno (Docker)
+       ▼
+┌──────────────────┐
+│   rund-auth      │  Servicio de Autenticación
+│  (Node.js 20+)   │
+│                  │
+│ • LDAP Auth      │  → Active Directory ESAP
+│ • OAuth 2.0      │  → Azure AD (Entra ID)
+│ • JWT Signing    │  → RS256 con claves públicas/privadas
+│ • Redis Sessions │  → Gestión de sesiones
+└──────────────────┘
+```
+
+### Componentes de Autenticación
+
+#### 1. AuthController.php
+**Ubicación:** `app/src/Controllers/V2/AuthController.php`
+
+Endpoints implementados:
+- `POST /api/v2/auth/login` - Login con LDAP
+- `GET /api/v2/auth/session` - Verificar sesión activa
+- `POST /api/v2/auth/logout` - Cerrar sesión
+- `POST /api/v2/auth/refresh` - Refrescar JWT antes de expiración
+- `GET /api/v2/auth/health` - Health check del sistema de auth
+- `POST /api/v2/auth/dev/login` - Login de desarrollo (solo DEV)
+
+**Características:**
+- JWT almacenado en sesión PHP (nunca expuesto al frontend)
+- Cookies httpOnly con sameSite=Lax
+- Timeout de inactividad: 8 horas
+- Regeneración de session ID en login por seguridad
+
+#### 2. AuthService.php
+**Ubicación:** `app/src/Services/AuthService.php`
+
+Métodos principales:
+```php
+// Login con LDAP
+public function loginWithLDAP(string $username, string $password): array
+
+// Obtener sesión activa
+public function getSession(string $sessionCookie): ?array
+
+// Cerrar sesión
+public function logout(string $sessionCookie): bool
+
+// Refrescar JWT
+public function refreshJWT(string $sessionCookie): string
+
+// Verificar salud
+public function checkHealth(): bool
+
+// Obtener JWKS público
+public function getPublicJWKS(): array
+```
+
+**Responsabilidades:**
+- Comunicación HTTP con rund-auth
+- Manejo de errores de autenticación
+- Gestión de cookies de sesión de rund-auth
+
+#### 3. JWTValidator.php
+**Ubicación:** `app/src/Services/JWTValidator.php`
+
+Validador nativo de JWT con verificación RS256:
+
+```php
+public function validate(
+    string $token,
+    string $expectedIssuer = 'rund-auth',
+    string $expectedAudience = 'rund-api'
+): array
+```
+
+**Características:**
+- ✅ Validación de firma RS256 usando OpenSSL
+- ✅ Verificación de claims (iss, aud, exp, iat, sub)
+- ✅ Cache de JWKS público (TTL: 5 minutos)
+- ✅ Conversión JWK → PEM nativa en PHP
+- ✅ Sin dependencias externas
+
+**Validaciones realizadas:**
+1. Formato JWT válido (3 partes separadas por puntos)
+2. Header válido con algoritmo RS256 y kid
+3. Claims obligatorios presentes
+4. Issuer correcto (`rund-auth`)
+5. Audience válida (`rund-api`)
+6. Token no expirado
+7. Firma criptográfica válida con clave pública del JWKS
+
+#### 4. AuthMiddleware.php (Actualizado)
+**Ubicación:** `app/src/Middleware/AuthMiddleware.php`
+
+Middleware para proteger rutas que requieren autenticación:
+
+```php
+// Ejemplo de uso en routes_v2.php
+$router->group('/profesores', function (Router $router) {
+    $router->get('/{cedula}', [ProfesoresController::class, 'show'], [
+        AuthMiddleware::authenticate()  // ← Requiere autenticación
+    ]);
+});
+```
+
+**Métodos disponibles:**
+- `authenticate()` - Requiere sesión válida con JWT
+- `requireRole(string $role)` - Requiere rol específico
+- `limitToIPs(array $ips)` - Solo IPs permitidas
+- `internalOnly()` - Solo red interna Docker
+
+**Flujo de validación:**
+1. Verificar sesión PHP activa
+2. Verificar timeout de inactividad (< 8 horas)
+3. Obtener JWT de `$_SESSION['internal_jwt']`
+4. Validar JWT con JWTValidator
+5. Actualizar última actividad
+6. Si válido → continuar request
+7. Si inválido → 401 Unauthorized + limpiar sesión
+
+### Flujo de Autenticación Completo
+
+#### Login
+```
+1. Frontend → POST /api/v2/auth/login {username, password}
+2. AuthController.login()
+3. AuthService.loginWithLDAP() → rund-auth
+4. rund-auth valida contra LDAP
+5. rund-auth retorna {user, internal_jwt}
+6. AuthController guarda en sesión PHP:
+   $_SESSION['user'] = user
+   $_SESSION['internal_jwt'] = jwt
+   $_SESSION['last_activity'] = time()
+7. AuthController → Frontend: {user, session_id}
+   (JWT NUNCA se expone al frontend)
+```
+
+#### Petición Protegida
+```
+1. Frontend → GET /api/v2/profesores/71799891
+   (con cookie RUND_SESSION automática)
+2. AuthMiddleware.authenticate() se ejecuta
+3. Verifica sesión PHP activa
+4. Obtiene JWT de $_SESSION['internal_jwt']
+5. JWTValidator.validate(jwt) verifica firma RS256
+6. Si válido → continúa a ProfesoresController
+7. Si inválido → 401 Unauthorized
+```
+
+#### Logout
+```
+1. Frontend → POST /api/v2/auth/logout
+2. AuthController.logout()
+3. Intenta cerrar sesión en rund-auth (best effort)
+4. Limpia sesión PHP: $_SESSION = []
+5. Elimina cookie RUND_SESSION
+6. Destruye sesión
+7. Frontend ← {success: true}
+```
+
+### Seguridad Implementada
+
+#### JWT (JSON Web Token)
+- **Algoritmo:** RS256 (asimétrico)
+- **Issuer:** rund-auth
+- **Audience:** rund-api, rund-mgp
+- **TTL:** 900 segundos (15 minutos)
+- **Firma:** Clave privada en rund-auth
+- **Validación:** Clave pública en JWKS público
+
+**Estructura del JWT:**
+```json
+{
+  "header": {
+    "alg": "RS256",
+    "kid": "key-id",
+    "typ": "JWT"
+  },
+  "payload": {
+    "sub": "user-identifier",
+    "email": "usuario@esap.edu.co",
+    "roles": [],
+    "wl_ver": 1,
+    "iss": "rund-auth",
+    "aud": ["rund-api", "rund-mgp"],
+    "iat": 1234567890,
+    "exp": 1234568790
+  }
+}
+```
+
+#### Sesiones PHP
+- **Nombre:** RUND_SESSION
+- **httpOnly:** true (no accesible desde JavaScript)
+- **sameSite:** Lax (protección CSRF)
+- **secure:** false en desarrollo, true en producción (HTTPS)
+- **Timeout:** 28800 segundos (8 horas de inactividad)
+
+#### JWKS Público
+- **URL:** `http://rund-auth:8080/.well-known/jwks.json`
+- **Cache:** 5 minutos en JWTValidator
+- **Formato:** JSON Web Key Set (RFC 7517)
+- **Uso:** Validación de firma de JWT sin compartir clave privada
+
+### Configuración
+
+#### Config.php
+```php
+/** @var string URL del servicio rund-auth (autenticación centralizada) */
+const RUND_AUTH_URL = "http://rund-auth:8080";
+```
+
+#### routes_v2.php
+```php
+// Grupo de rutas de autenticación
+$router->group('/auth', function (Router $router) {
+    // Endpoints públicos
+    $router->post('/login', [AuthController::class, 'login']);
+    $router->post('/dev/login', [AuthController::class, 'devLogin']);
+    $router->get('/health', [AuthController::class, 'health']);
+
+    // Endpoints protegidos
+    $router->get('/session', [AuthController::class, 'getSession']);
+    $router->post('/logout', [AuthController::class, 'logout']);
+    $router->post('/refresh', [AuthController::class, 'refresh']);
+});
+```
+
+### Integración con Frontend (rund-mgp)
+
+Ver documentación completa en:
+- [AUTENTICACION.md](./AUTENTICACION.md) - Guía completa de implementación
+- [rund-auth/docs/integracion-ecosistema-rund.md](../../rund-auth/docs/integracion-ecosistema-rund.md)
+
+**Ejemplo básico en Angular:**
+```typescript
+// auth.service.ts
+login(username: string, password: string) {
+  return this.http.post(
+    'http://localhost:3000/api/v2/auth/login',
+    { username, password },
+    { withCredentials: true }  // IMPORTANTE: enviar cookies
+  );
+}
+```
+
+### Documentación Adicional
+
+Para más detalles sobre:
+- **Implementación completa:** Ver [AUTENTICACION.md](./AUTENTICACION.md)
+- **Endpoints de auth:** Ver [02_ENDPOINTS_API.md](./02_ENDPOINTS_API.md)
+- **Seguridad y JWT:** Ver [07_SEGURIDAD_Y_VALIDACIONES.md](./07_SEGURIDAD_Y_VALIDACIONES.md)
+- **Integración rund-auth:** Ver [10_INTEGRACION_SERVICIOS_EXTERNOS.md](./10_INTEGRACION_SERVICIOS_EXTERNOS.md)
+
+---
+
 ## Próximos Pasos
 
 Para entender en detalle:
+- **Autenticación:** Ver `AUTENTICACION.md` ⭐ NUEVO
 - **Endpoints:** Ver `02_ENDPOINTS_API.md`
 - **Services:** Ver `03_SERVICIOS_Y_HANDLERS.md`
 - **OpenKM:** Ver `04_INTEGRACION_OPENKM.md`
@@ -775,5 +1057,10 @@ Para entender en detalle:
 
 ---
 
-**Última actualización:** 2025-10-20
-**Versión del documento:** 1.0
+**Última actualización:** 2025-12-13
+**Versión del documento:** 2.1
+**Cambios principales:**
+- ⭐ Sistema de autenticación completo
+- ⭐ AuthController, AuthService, JWTValidator
+- ⭐ Validación JWT RS256 con JWKS público
+- ⭐ Middleware de autenticación implementado
