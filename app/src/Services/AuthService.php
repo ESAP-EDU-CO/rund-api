@@ -271,47 +271,26 @@ class AuthService
 	 */
 	public function devLogin(string $email): array
 	{
-		$url = $this->authBaseUrl . '/dev/login?email=' . urlencode($email);
+		$url = $this->authBaseUrl . '/dev/login';
+
+		$payload = [
+			'email' => $email
+		];
 
 		try {
-			// Hacer request con cURL y capturar cookies
-			$ch = curl_init($url);
-			$cookieFile = tempnam(sys_get_temp_dir(), 'cookie_');
+			$response = $this->makeRequest('POST', $url, $payload);
 
-			curl_setopt_array($ch, [
-				CURLOPT_RETURNTRANSFER => true,
-				CURLOPT_TIMEOUT => $this->timeout,
-				CURLOPT_COOKIEJAR => $cookieFile,
-				CURLOPT_COOKIEFILE => $cookieFile,
-				CURLOPT_FOLLOWLOCATION => true,
-			]);
-
-			$response = curl_exec($ch);
-			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-			curl_close($ch);
-
-			if ($httpCode !== 200) {
-				throw new RuntimeException('Error en dev login: HTTP ' . $httpCode);
-			}
-
-			// Leer el archivo de cookies para obtener el session cookie
-			$cookies = file_get_contents($cookieFile);
-			unlink($cookieFile);
-
-			$decoded = json_decode($response, true);
-
-			if (json_last_error() !== JSON_ERROR_NONE || !isset($decoded['user'])) {
-				throw new RuntimeException('Respuesta inválida del dev login');
+			if (!isset($response['user']) || !isset($response['internal_jwt'])) {
+				throw new RuntimeException('Respuesta inválida del servicio de autenticación');
 			}
 
 			return [
-				'user' => $decoded['user'],
-				'jwt' => $decoded['internal_jwt'] ?? null,
-				'cookies' => $cookies
+				'user' => $response['user'],
+				'jwt' => $response['internal_jwt']
 			];
 		} catch (Exception $e) {
 			throw new RuntimeException(
-				'Error en dev login: ' . $e->getMessage(),
+				'Error en autenticación dev: ' . $e->getMessage(),
 				$e->getCode(),
 				$e
 			);
