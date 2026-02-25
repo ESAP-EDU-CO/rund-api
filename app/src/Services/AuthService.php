@@ -168,7 +168,7 @@ class AuthService
 
 		try {
 			$response = $this->makeRequest('GET', $url);
-			return isset($response['status']) && $response['status'] === 'ok';
+			return isset($response['ok']) && $response['ok'] === true;
 		} catch (Exception $e) {
 			return false;
 		}
@@ -220,7 +220,8 @@ class AuthService
 		// Headers por defecto
 		$defaultHeaders = [
 			'Content-Type: application/json',
-			'Accept: application/json'
+			'Accept: application/json',
+			'Connection: close', // Fuerza cierre de conexión para evitar timeout en HTTP/1.1 keep-alive
 		];
 
 		curl_setopt_array($ch, [
@@ -229,6 +230,7 @@ class AuthService
 			CURLOPT_CUSTOMREQUEST => $method,
 			CURLOPT_HTTPHEADER => array_merge($defaultHeaders, $headers),
 			CURLOPT_FOLLOWLOCATION => false, // No seguir redirects automáticamente
+			CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_0, // HTTP/1.0: servidor cierra conexión y hace flush del buffer TCP
 		]);
 
 		// Si hay datos, enviarlos como JSON
