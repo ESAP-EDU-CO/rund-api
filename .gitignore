@@ -22,3 +22,6 @@ app/exports/*
 
 composer.lock
 vendor/
+
+# Oh My Claude
+.omc/
