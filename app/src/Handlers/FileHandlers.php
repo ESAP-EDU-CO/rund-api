@@ -641,7 +641,7 @@ class FileHandlers
           "file_path" => $path,
           "tipo_documento" => $tipoDocumento
         ]],
-        "callback_url" => Config::API_BASE_URL . "/api/v2/webhooks/extraction-complete"
+        "callback_url" => Config::API_BASE_URL . "/api/v2/ai/webhook/extraction-complete"
       ];
 
       // 3. Enviar a cola de rund-ai

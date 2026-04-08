@@ -267,39 +267,54 @@ class DocumentosInternosController extends BaseController
 		}
 
 		try {
-			// El método setCategory de OpenKM usa directamente el docPath
-			// No necesitamos buscar el UUID primero
-			$url = $_ENV["CORE_API_URL"] . Config::REST . "document/setCategory";
+			// 1. Obtener UUID del documento vía búsqueda en OpenKM
+			$filename = basename($docPath);
+			$parentPath = dirname($docPath);
+			$uuid = OpenKM::findArchivo($filename, $parentPath);
 
-			$params = [
-				'docPath' => $docPath,
-				'catId' => $category
-			];
-
-			$curl = curl_init();
-			curl_setopt($curl, CURLOPT_URL, $url . '?' . http_build_query($params));
-			curl_setopt($curl, CURLOPT_CUSTOMREQUEST, 'PUT');
-			curl_setopt($curl, CURLOPT_USERNAME, Config::USER);
-			curl_setopt($curl, CURLOPT_PASSWORD, Config::PASSWORD);
-			curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-			curl_setopt($curl, CURLOPT_TIMEOUT, 30);
-
-			$response = curl_exec($curl);
-			$httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-			curl_close($curl);
-
-			if ($httpCode >= 400) {
-				return $this->errorResponse(
-					"Error al cambiar categoría: HTTP $httpCode - $response",
-					$httpCode
-				);
+			if (!$uuid) {
+				return $this->errorResponse("Documento no encontrado en OpenKM: $docPath", 404);
 			}
+
+			// 2. Obtener categorías actuales del documento
+			$propiedades = json_decode(OpenKM::consulta("document/getProperties?docId=" . urlencode($uuid)), true);
+			$categoriasActuales = $propiedades["categories"] ?? [];
+
+			// Normalizar a array de arrays con "path"
+			$categoriasArray = [];
+			if (!empty($categoriasActuales)) {
+				if (isset($categoriasActuales["path"])) {
+					$categoriasArray = [["path" => $categoriasActuales["path"]]];
+				} else {
+					foreach ($categoriasActuales as $cat) {
+						if (isset($cat["path"])) {
+							$categoriasArray[] = ["path" => $cat["path"]];
+						}
+					}
+				}
+			}
+
+			// 3. Eliminar categorías previas de EXTRACTION_STATUS y añadir la nueva
+			$prefixExtraction = Config::CTGR_EXTRACTION;
+			$categoriasArray = array_filter($categoriasArray, function($cat) use ($prefixExtraction) {
+				return strpos($cat["path"], $prefixExtraction) === false;
+			});
+			$categoriasArray = array_values($categoriasArray);
+
+			// 4. Construir ruta completa de la nueva categoría y crearla si no existe
+			$rutaCategoria = Config::CTGR_EXTRACTION . $category;
+			OpenKM::creaCarpetas([$rutaCategoria], Config::ROOT_CTG);
+			$categoriasArray[] = ["path" => $rutaCategoria];
+
+			// 5. Actualizar propiedades con las categorías combinadas
+			$postData = ["uuid" => $uuid, "categories" => $categoriasArray];
+			OpenKM::consulta("document/setProperties", "PUT", $postData);
 
 			return $this->successResponse([
 				'updated' => true,
 				'doc_path' => $docPath,
 				'category' => $category,
-				'response' => $response
+				'categoria_path' => $rutaCategoria
 			]);
 
 		} catch (\Exception $e) {
