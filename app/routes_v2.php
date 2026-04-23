@@ -25,7 +25,8 @@ use RUND\Controllers\V2\{
 	ArchivosController,
 	ListadosController,
 	FirmasController,
-	AIController
+	AIController,
+	WhitelistController
 };
 use RUND\Controllers\V2\SystemController as V2SystemController;
 use RUND\Middleware\{
@@ -143,6 +144,32 @@ function setupRoutesV2(Router $router): void
 			// Estadísticas de extracción
 			$router->get('/extraction/statistics', [AIController::class, 'getExtractionStatistics']);
 			$router->get('/extraction/professor/{cedula}', [AIController::class, 'getProfesorExtraction']);
+		});
+
+		// --- Administración (lista blanca de roles) ---
+		$router->group('/admin', function (Router $router) {
+			// Seed inicial (solo red interna Docker, no requiere rol — bootstrap)
+			$router->post('/whitelist/seed', [WhitelistController::class, 'seed'], [
+				AuthMiddleware::internalOnly()
+			]);
+
+			// Gestión completa (requiere autenticación + rol admin)
+			$router->get('/whitelist', [WhitelistController::class, 'getWhitelist'], [
+				AuthMiddleware::authenticate(),
+				AuthMiddleware::requireRole('admin')
+			]);
+			$router->get('/whitelist/{app_id}', [WhitelistController::class, 'getApp'], [
+				AuthMiddleware::authenticate(),
+				AuthMiddleware::requireRole('admin')
+			]);
+			$router->put('/whitelist/{app_id}/usuario', [WhitelistController::class, 'setUsuario'], [
+				AuthMiddleware::authenticate(),
+				AuthMiddleware::requireRole('admin')
+			]);
+			$router->delete('/whitelist/{app_id}/usuario/{email}', [WhitelistController::class, 'removeUsuario'], [
+				AuthMiddleware::authenticate(),
+				AuthMiddleware::requireRole('admin')
+			]);
 		});
 
 		// --- Documentos Internos (uso entre microservicios) ---

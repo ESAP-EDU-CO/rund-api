@@ -18,6 +18,7 @@ namespace RUND\Controllers\V2;
 use RUND\Controllers\BaseController;
 use RUND\Services\AuthService;
 use RUND\Services\JWTValidator;
+use RUND\Services\WhitelistService;
 use Exception;
 
 class AuthController extends BaseController
@@ -77,6 +78,13 @@ class AuthController extends BaseController
 			$authResult = $this->authService->loginWithLDAP(
 				$data['username'],
 				$data['password']
+			);
+
+			// Enriquecer roles desde lista blanca, scoped por frontend (X-App-Id)
+			$appId = $_SERVER['HTTP_X_APP_ID'] ?? '';
+			$authResult['user']['roles'] = WhitelistService::getRolesForUser(
+				$authResult['user']['email'] ?? '',
+				$appId
 			);
 
 			// Guardar en sesión PHP (nunca exponer JWT al frontend)
@@ -246,6 +254,13 @@ class AuthController extends BaseController
 		try {
 			// Login de desarrollo con rund-auth
 			$authResult = $this->authService->devLogin($data['email']);
+
+			// Enriquecer roles desde lista blanca, scoped por frontend (X-App-Id)
+			$appId = $_SERVER['HTTP_X_APP_ID'] ?? '';
+			$authResult['user']['roles'] = WhitelistService::getRolesForUser(
+				$authResult['user']['email'] ?? $data['email'],
+				$appId
+			);
 
 			// Guardar en sesión PHP
 			$_SESSION[self::SESSION_JWT_KEY] = $authResult['jwt'];

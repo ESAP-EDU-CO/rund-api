@@ -126,4 +126,11 @@ class Config
 
   /** @var string Imágenes de aplicación */
   const TAX_APP_IMG = self::ROOT_TAX_CONF . "IMG/";
+
+  // ============================================================================
+  // LISTA BLANCA DE ROLES
+  // ============================================================================
+
+  /** @var string Nombre del archivo JSON de lista blanca en OpenKM (sin extensión) */
+  const WHITELIST_FILE = 'whitelist'; // → /okm:root/RUND/CONFIG/DATA/whitelist.json
 }
