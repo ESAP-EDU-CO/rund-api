@@ -95,9 +95,16 @@ class DataHandlers
     if (!preg_match('/^\d{4,20}$/', $cedula)) return ["error" => "La cédula debe tener entre 4 y 20 dígitos."];
     $archivosProfesor = DocumentService::getInfoArchivosProfesor($cedula, false);
     $datosDemograficos = DocumentService::getInfoArchivosProfesor($cedula);
+    $indiceResult = FileHandlers::getIndiceDocente();
+    $fechaNacimiento = (!$indiceResult['error'] && isset($indiceResult['indice'][$cedula]))
+      ? ($indiceResult['indice'][$cedula]['FECHA_NACIMIENTO'] ?? null)
+      : null;
+
     if (null !== $datosDemograficos) {
       $datosDemograficos["categorias"] = DocumentService::estructuraCategorias($datosDemograficos["categorias"]);
-      return ["archivosProfesor" => $archivosProfesor, "datosDemograficos" => $datosDemograficos];
+      return ["archivosProfesor" => $archivosProfesor, "datosDemograficos" => $datosDemograficos, "fechaNacimiento" => $fechaNacimiento];
+    } elseif (!empty($archivosProfesor)) {
+      return ["archivosProfesor" => $archivosProfesor, "datosDemograficos" => ["categorias" => new \stdClass()], "fechaNacimiento" => $fechaNacimiento];
     } else {
       return ["error" => null, "resultado" => "El profesor con cédula $cedula no tiene datos registrados en rund-core."];
     }
