@@ -98,6 +98,9 @@ class DataHandlers
     if (null !== $datosDemograficos) {
       $datosDemograficos["categorias"] = DocumentService::estructuraCategorias($datosDemograficos["categorias"]);
       return ["archivosProfesor" => $archivosProfesor, "datosDemograficos" => $datosDemograficos];
+    } elseif (!empty($archivosProfesor)) {
+      // Tiene archivos pero la cédula tiene nombre no estándar (sin "cedula" en el nombre)
+      return ["archivosProfesor" => $archivosProfesor, "datosDemograficos" => []];
     } else {
       return ["error" => null, "resultado" => "El profesor con cédula $cedula no tiene datos registrados en rund-core."];
     }
