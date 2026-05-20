@@ -183,4 +183,26 @@ class AIController extends BaseController
             );
         }
     }
+
+    public function getQueueStats(array $params = []): array
+    {
+        try {
+            $aiUrl = $_ENV['RUND_AI_URL'] ?? 'http://rund-ai:8001';
+            $ch = curl_init("$aiUrl/queue/stats");
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            if ($httpCode !== 200) {
+                return $this->errorResponse('Error consultando cola de rund-ai', 500);
+            }
+            return $this->successResponse([
+                'queue' => json_decode($response, true),
+                'meta'  => ['source' => 'rund-ai', 'version' => '2.0']
+            ]);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Error consultando cola: ' . $e->getMessage(), 500);
+        }
+    }
 }

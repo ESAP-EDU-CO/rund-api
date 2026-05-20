@@ -144,6 +144,7 @@ function setupRoutesV2(Router $router): void
 			// Estadísticas de extracción
 			$router->get('/extraction/statistics', [AIController::class, 'getExtractionStatistics']);
 			$router->get('/extraction/professor/{cedula}', [AIController::class, 'getProfesorExtraction']);
+			$router->get('/queue/stats', [AIController::class, 'getQueueStats']);
 		});
 
 		// --- Administración (lista blanca de roles) ---
