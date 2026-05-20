@@ -136,8 +136,8 @@ class DocumentService
     // Extrae el nombre del archivo
     $path = $nodo["path"];
     $path = preg_replace("#$tax#", "", $path);
-    $partes = explode("/", $path);
-    $nombre = array_pop($partes);
+    $partesRuta = explode("/", $path);
+    $nombre = array_pop($partesRuta);
     // Extrae las categorías (sean de documento o demográficas) del documento
     $categorias = [];
 
@@ -157,12 +157,32 @@ class DocumentService
             $pathCate = $cate["path"];
             if (preg_match("#$cat#", $pathCate)) {
               $ruta = preg_replace("#$cat#", "", $pathCate);
-              $partes = explode("/", $ruta);
-              $categorias[] = $partes;
+              $partesCat = explode("/", $ruta);
+              $categorias[] = $partesCat;
             }
           }
         }
       }
+    }
+
+    // Fallback: si search/find no devuelve categorías, las infiere del path y mimeType
+    if (empty($categorias)) {
+      $mimeFormato = [
+        'application/pdf'  => 'PDF',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'DOCX',
+        'application/vnd.ms-excel' => 'XLS',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'XLSX',
+        'image/jpeg' => 'JPG',
+        'image/png'  => 'PNG',
+        'application/json' => 'JSON',
+        'image/tiff' => 'TIFF',
+        'image/bmp'  => 'BMP',
+      ];
+      $mime    = $nodo['mimeType'] ?? '';
+      $formato = $mimeFormato[$mime] ?? strtoupper(pathinfo($nombre, PATHINFO_EXTENSION));
+      if ($formato) $categorias[] = ['FORMATO', $formato];
+      // Tipo: segunda parte del path relativo (subcarpeta bajo la cédula del docente)
+      if (count($partesRuta) >= 2) $categorias[] = ['TIPO', $partesRuta[1]];
     }
 
     return [
