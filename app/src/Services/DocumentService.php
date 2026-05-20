@@ -181,8 +181,12 @@ class DocumentService
       $mime    = $nodo['mimeType'] ?? '';
       $formato = $mimeFormato[$mime] ?? strtoupper(pathinfo($nombre, PATHINFO_EXTENSION));
       if ($formato) $categorias[] = ['FORMATO', $formato];
-      // Tipo: segunda parte del path relativo (subcarpeta bajo la cédula del docente)
-      if (count($partesRuta) >= 2) $categorias[] = ['TIPO', $partesRuta[1]];
+      // Tipo: subcarpeta bajo la cédula; si no hay subcarpeta el archivo es la cédula misma
+      if (count($partesRuta) >= 2) {
+        $categorias[] = ['TIPO', $partesRuta[1]];
+      } else {
+        $categorias[] = ['TIPO', 'CEDULA'];
+      }
     }
 
     return [
