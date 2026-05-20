@@ -85,6 +85,10 @@ COPY docker/fpm-pool.conf /usr/local/etc/php-fpm.d/www.conf
 COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
+# Cron job nocturno para actualización de rangos etarios
+COPY cron/rund-crontab /etc/crontabs/root
+RUN chmod 0600 /etc/crontabs/root
+
 # Create necessary directories including QR storage and Nginx temp directories
 RUN mkdir -p /var/www/html/logs \
   && mkdir -p /var/www/html/tmp \
