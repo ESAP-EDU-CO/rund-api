@@ -283,9 +283,22 @@ class FileHandlers
         $postData = ["uuid" => $uuid, "categories" => $categorias]; // Genera el array de datos para actualizar las propiedades del documento
         $salida["setProperties"] = OpenKM::consulta("document/setProperties", "PUT", $postData); // Actualiza las propiedades del documento en OpenKM
 
-        // === NUEVO: Encolar para extracción asíncrona ===
-        $filePath = $path . "/" . $nombreArchivo; // Construir ruta completa del archivo
+        // === Encolar para extracción asíncrona ===
+        $filePath = $path . "/" . $nombreArchivo;
         $salida["extraction_queued"] = self::queueExtraction($uuid, $filePath, $tipoDocumento);
+
+        // === Guardar fecha de nacimiento en índice docente ===
+        if ($esCedula) {
+          $elemFecha = Utils::extraeElemento($propiedades, "label", "fecha_nacimiento");
+          $fechaNacimiento = $elemFecha ? ($elemFecha["valor"] ?? '') : '';
+          if (!empty($fechaNacimiento) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaNacimiento)) {
+            $jsonParcial = json_encode(
+              [$cedula => ['FECHA_NACIMIENTO' => $fechaNacimiento]],
+              JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+            );
+            $salida["actualiza_fecha_nacimiento"] = self::almacenaIndiceJson($jsonParcial);
+          }
+        }
 
         break;
     }

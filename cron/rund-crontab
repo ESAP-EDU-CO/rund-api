@@ -1,0 +1,2 @@
+# Actualiza rangos etarios diariamente a las 2 AM (hora de Bogotá)
+0 2 * * * php /var/www/html/cli/actualiza_rangos_etarios.php >> /var/log/supervisor/rund-cron.log 2>&1
