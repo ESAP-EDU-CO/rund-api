@@ -147,6 +147,13 @@ function setupRoutesV2(Router $router): void
 			$router->get('/queue/stats', [AIController::class, 'getQueueStats']);
 		});
 
+		// --- Consulta de documentos extraídos (paginada) ---
+		$router->group('/extraccion', function (Router $router) {
+			$router->get('/stats',                    [AIController::class, 'getStatsExtraccion']);
+			$router->get('/json/{cedula}/{nombre_json}', [AIController::class, 'getJsonExtraido']);
+			$router->get('/{cedula}',                 [AIController::class, 'getDocumentosDocente']);
+		});
+
 		// --- Administración (lista blanca de roles) ---
 		$router->group('/admin', function (Router $router) {
 			// Seed inicial (solo red interna Docker, no requiere rol — bootstrap)
