@@ -32,6 +32,23 @@ El **índice docente** (`indice_docente.json`) es un archivo JSON que funciona c
 
 ---
 
+## 1.1 Campos Adicionales
+
+Desde la versión 2.0, el `indice_docente.json` incluye campos calculados automáticamente:
+
+- **FECHA_NACIMIENTO** (desde v2.0): Fecha de nacimiento extraída automáticamente cuando se carga una cédula con OCR/IA. Formato: YYYY-MM-DD
+- **RANGO_ETARIO** (calculado nightly): Rango de edad derivado de FECHA_NACIMIENTO:
+  - `18-25`: 18 a 25 años
+  - `26-35`: 26 a 35 años
+  - `36-45`: 36 a 45 años
+  - `46-55`: 46 a 55 años
+  - `56+`: 56 años o más
+  - `No definido`: Si FECHA_NACIMIENTO es nulo
+
+**Nota:** El RANGO_ETARIO se actualiza automáticamente cada noche a las 02:00 AM (hora servidor) mediante cron job.
+
+---
+
 ## 2. Flujo de Generación
 
 ### Diagrama de Flujo
@@ -559,6 +576,158 @@ export class BusquedaDocenteComponent implements OnInit {
 
 ---
 
+## 9. Script de Actualización de Rangos Etarios (Cron Job)
+
+### Descripción
+
+El script `app/cli/actualiza_rangos_etarios.php` se ejecuta automáticamente cada noche a las 02:00 AM para calcular y actualizar el campo `RANGO_ETARIO` en el `indice_docente.json` basándose en el campo `FECHA_NACIMIENTO`.
+
+**Ubicación del script:**
+- Archivo: `/app/cli/actualiza_rangos_etarios.php`
+- Cron: `0 2 * * *` (02:00 AM todos los días)
+- Configuración: `/cron/rund-crontab`
+
+### Flujo de Ejecución
+
+```
+02:00 AM (diario)
+    ↓
+cron ejecuta: php /var/www/html/app/cli/actualiza_rangos_etarios.php
+    ↓
+Script carga indice_docente.json desde OpenKM
+    ↓
+Para cada docente con FECHA_NACIMIENTO:
+  - Calcula edad actual
+  - Asigna RANGO_ETARIO según edad
+    ↓
+Guarda indice_docente.json actualizado
+    ↓
+OpenKM guarda nueva versión con comentario automático
+    ↓
+Email de notificación (opcional, si está configurado)
+```
+
+### Definición de Rangos Etarios
+
+| Rango | Criterio | Edad |
+|-------|----------|------|
+| `18-25` | FECHA_NACIMIENTO entre 18 y 25 años atrás | 18-25 años |
+| `26-35` | FECHA_NACIMIENTO entre 26 y 35 años atrás | 26-35 años |
+| `36-45` | FECHA_NACIMIENTO entre 36 y 45 años atrás | 36-45 años |
+| `46-55` | FECHA_NACIMIENTO entre 46 y 55 años atrás | 46-55 años |
+| `56+` | FECHA_NACIMIENTO hace 56+ años | 56 años o más |
+| `No definido` | FECHA_NACIMIENTO es null o inválida | N/A |
+
+### Ejemplo de Actualización
+
+**Antes de ejecutar cron:**
+```json
+{
+  "71799891": {
+    "NOMBRE_Y_APELLIDO": "JUAN CARLOS PEREZ",
+    "FECHA_NACIMIENTO": "1985-03-15",
+    "RANGO_ETARIO": "No definido"
+  }
+}
+```
+
+**Después de ejecutar cron (si hoy es 2025-12-02, edad = 40 años):**
+```json
+{
+  "71799891": {
+    "NOMBRE_Y_APELLIDO": "JUAN CARLOS PEREZ",
+    "FECHA_NACIMIENTO": "1985-03-15",
+    "RANGO_ETARIO": "36-45"
+  }
+}
+```
+
+### Configuración del Cron
+
+**Archivo:** `/cron/rund-crontab`
+
+```bash
+# Actualización automática de rangos etarios
+# Ejecutar diariamente a las 02:00 AM hora servidor
+0 2 * * * php /var/www/html/app/cli/actualiza_rangos_etarios.php >> /var/www/html/logs/cron_rangos_etarios.log 2>&1
+
+# Alternativa con notificación por email
+# 0 2 * * * php /var/www/html/app/cli/actualiza_rangos_etarios.php | mail -s "RUND: Actualización de rangos etarios" admin@esap.edu.co
+```
+
+### Instalación del Cron Job
+
+**En el contenedor de rund-api:**
+
+```bash
+# Copiar crontab al contenedor
+docker cp ./cron/rund-crontab rund-api:/tmp/rund-crontab
+
+# Instalar crontab
+docker exec rund-api crontab /tmp/rund-crontab
+
+# Verificar que se instaló correctamente
+docker exec rund-api crontab -l
+```
+
+### Logs
+
+Los logs del cron job se guardan en:
+- Ubicación: `/var/www/html/logs/cron_rangos_etarios.log`
+- Ver últimas ejecuciones: `tail -20 logs/cron_rangos_etarios.log`
+
+**Ejemplo de log exitoso:**
+```
+2025-12-02 02:00:01 - Inicio de actualización de rangos etarios
+2025-12-02 02:00:02 - Cargando indice_docente.json desde OpenKM
+2025-12-02 02:00:03 - Procesando 150 docentes
+2025-12-02 02:00:04 - Docentes actualizados: 145
+2025-12-02 02:00:04 - Docentes sin FECHA_NACIMIENTO: 5
+2025-12-02 02:00:05 - Guardando actualización en OpenKM
+2025-12-02 02:00:06 - Nueva versión creada: 1.5
+2025-12-02 02:00:06 - Ejecución completada exitosamente
+```
+
+### Monitoreo Manual
+
+**Ejecutar manualmente el cron job:**
+
+```bash
+# Conectar al contenedor
+docker exec -it rund-api bash
+
+# Ejecutar el script manualmente
+php /var/www/html/app/cli/actualiza_rangos_etarios.php
+
+# Ver salida
+php /var/www/html/app/cli/actualiza_rangos_etarios.php -v
+```
+
+### Comportamiento del Script
+
+1. **Carga de datos**: Obtiene `indice_docente.json` desde OpenKM
+2. **Validación**: Verifica que cada docente tenga FECHA_NACIMIENTO válida
+3. **Cálculo**: Calcula edad y asigna RANGO_ETARIO correspondiente
+4. **Merge**: Preserva todos los campos existentes
+5. **Versionado**: Guarda nueva versión en OpenKM con checkout/checkin
+6. **Logging**: Registra detalles de la ejecución
+
+### Casos de Uso
+
+1. **Análisis demográfico**: Reportes por grupo etario
+2. **Planificación de jubilación**: Identificar docentes cercanos a edad de retiro
+3. **Estadísticas**: Dashboard con distribución por edad
+4. **Comparativas**: Análisis histórico de cambios en rangos etarios
+
+### Notas Importantes
+
+- El script se ejecuta en hora del servidor (UTC-5 por defecto en ESAP)
+- Si FECHA_NACIMIENTO cambia, RANGO_ETARIO se actualiza automáticamente en la próxima ejecución del cron
+- Los cron jobs requieren que el contenedor esté ejecutándose en background
+- Ver logs para debugging en caso de errores
+
+---
+
 ## Resumen
 
 El sistema de índice docente JSON proporciona:
@@ -569,6 +738,8 @@ El sistema de índice docente JSON proporciona:
 ✅ **Versionado** en OpenKM
 ✅ **Búsqueda O(1)** por cédula
 ✅ **Escalabilidad** para nuevos campos
+✅ **FECHA_NACIMIENTO automática** desde cédulas escaneadas (OCR/IA)
+✅ **RANGO_ETARIO calculado** diariamente por cron job
 ✅ **Fácil consumo** desde frontend
 
 Esta funcionalidad permite que el frontend tenga acceso rápido y eficiente a la información de profesores sin necesidad de consultas complejas o procesamiento de CSV en el cliente.

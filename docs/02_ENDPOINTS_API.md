@@ -2,7 +2,7 @@
 
 > **Versión:** 2.0
 > **Autor:** Oliver Castelblanco Martínez (oliver.castelblanco@esap.edu.co)
-> **Total de Endpoints:** 30
+> **Total de Endpoints:** 39
 > **Arquitectura:** RESTful con Controllers modulares (PSR-4)
 
 ---
@@ -17,7 +17,7 @@
 6. [Archivos (8 endpoints)](#6-archivos-8-endpoints)
 7. [Listados (4 endpoints)](#7-listados-4-endpoints)
 8. [Firmas (3 endpoints)](#8-firmas-3-endpoints)
-9. [AI (1 endpoint)](#9-ai-1-endpoint)
+9. [AI y Extracción (5 endpoints)](#9-ai-y-extracción-5-endpoints)
 10. [Tabla Resumen](#tabla-resumen-de-todos-los-endpoints)
 
 ---
@@ -2432,7 +2432,7 @@ curl -X POST http://localhost:3000/api/v2/firmas/subir \
 
 ---
 
-## 9. AI (1 endpoint)
+## 9. AI y Extracción (5 endpoints)
 
 ### 9.1 POST /api/v2/ai/extraer
 
@@ -2523,6 +2523,347 @@ curl -X POST http://localhost:3000/api/v2/ai/extraer \
 
 ---
 
+### 9.2 GET /api/v2/ai/queue/stats
+
+**Descripción:** Obtiene estadísticas en tiempo real de la cola de procesamiento de extracción de rund-ai (FIFO, workers, jobs).
+
+**Controller:** `AIController::getQueueStats()`
+
+**Parámetros de entrada:** Ninguno
+
+**Validaciones:** Ninguna
+
+**Respuesta exitosa (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "queue": {
+      "total_jobs": 45,
+      "pending": 12,
+      "processing": 3,
+      "completed": 25,
+      "failed": 5,
+      "average_processing_time_seconds": 28.5,
+      "workers_active": 3,
+      "queue_size": 12,
+      "oldest_job_created": "2025-12-02T08:15:30",
+      "success_rate_percent": 83.3
+    },
+    "meta": {
+      "source": "rund-ai",
+      "version": "2.0"
+    }
+  }
+}
+```
+
+**Códigos de error:**
+- `500`: Error consultando rund-ai
+
+**Ejemplo cURL:**
+```bash
+curl -X GET http://localhost:3000/api/v2/ai/queue/stats
+```
+
+**Handlers/Services:**
+- `AIController::getQueueStats()`
+- Proxy a `rund-ai:8001/queue/stats`
+
+**Casos de uso:**
+- Monitoreo de la cola de procesamiento asíncrono
+- Verificar estado de workers disponibles
+- Obtener métricas de rendimiento
+- Alertas de cola llena o procesamiento lento
+
+---
+
+## 10. Extracción de documentos (/api/v2/extraccion)
+
+### 10.1 GET /api/v2/extraccion/stats
+
+**Descripción:** Obtiene estadísticas globales y aplanadas del índice centralizado de extracción (todos los documentos procesados en rund-ai).
+
+**Controller:** `AIController::getStatsExtraccion()`
+
+**Parámetros de entrada:** Ninguno
+
+**Validaciones:** Ninguna
+
+**Respuesta exitosa (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "total_documentos": 150,
+    "total_profesores": 45,
+    "por_estado": {
+      "pendiente": 20,
+      "procesando": 5,
+      "completado": 120,
+      "error": 5
+    },
+    "por_categoria": {
+      "cedula": 45,
+      "certificado_laboral": 60,
+      "certificado_academico": 30,
+      "resolucion": 15
+    },
+    "tasa_exito": 89,
+    "ultima_actualizacion": "2025-12-02T17:30:00",
+    "meta": {
+      "source": "rund-ai",
+      "version": "2.0"
+    }
+  }
+}
+```
+
+**Códigos de error:**
+- `500`: Error consultando rund-ai
+
+**Ejemplo cURL:**
+```bash
+curl -X GET http://localhost:3000/api/v2/extraccion/stats
+```
+
+**Handlers/Services:**
+- `AIController::getStatsExtraccion()`
+- Proxy a `rund-ai:8001/extraction/statistics`
+
+**Casos de uso:**
+- Dashboard de estadísticas globales
+- Monitoreo de progreso de extracción
+- Métricas de éxito y errores
+- Análisis por categoría de documentos
+
+---
+
+### 10.2 GET /api/v2/extraccion/{cedula}?page=1&size=10
+
+**Descripción:** Obtiene lista paginada de documentos extraídos de un docente específico, incluyendo el nombre del JSON side-car para documentos completados.
+
+**Controller:** `AIController::getDocumentosDocente()`
+
+**Parámetros de entrada:**
+- **Path parameters:**
+  - `cedula` (string, requerido): Cédula del profesor (4-20 dígitos)
+- **Query parameters:**
+  - `page` (int, opcional): Número de página (default: 1)
+  - `size` (int, opcional): Tamaño de página, máximo 50 (default: 10)
+
+**Validaciones:**
+- Cédula es requerida
+- `page` y `size` deben ser números enteros positivos
+- `size` máximo: 50
+
+**Respuesta exitosa (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "cedula": "71799891",
+    "documentos": [
+      {
+        "document_id": "uuid-123",
+        "file_path": "/okm:root/RUND/DOCENTES/HOJAS_DE_VIDA/71799891/cedula.pdf",
+        "tipo_documento": "cedula",
+        "status": "completado",
+        "confidence": 0.95,
+        "fecha_procesamiento": "2025-11-26T14:30:00",
+        "json_nombre": "cedula.json"
+      },
+      {
+        "document_id": "uuid-456",
+        "file_path": "/okm:root/RUND/DOCENTES/HOJAS_DE_VIDA/71799891/certificado_laboral.pdf",
+        "tipo_documento": "certificado_laboral",
+        "status": "completado",
+        "confidence": 0.88,
+        "fecha_procesamiento": "2025-11-26T15:12:00",
+        "json_nombre": "certificado_laboral.json"
+      },
+      {
+        "document_id": "uuid-789",
+        "file_path": "/okm:root/RUND/DOCENTES/HOJAS_DE_VIDA/71799891/certificado_academico.pdf",
+        "tipo_documento": "certificado_academico",
+        "status": "procesando",
+        "confidence": null,
+        "fecha_procesamiento": null,
+        "json_nombre": null
+      }
+    ],
+    "paginacion": {
+      "page": 1,
+      "size": 10,
+      "total": 25,
+      "pages": 3
+    }
+  }
+}
+```
+
+**Códigos de error:**
+- `400`: Cédula faltante o inválida
+- `500`: Error consultando rund-ai
+
+**Ejemplo cURL:**
+```bash
+curl -X GET "http://localhost:3000/api/v2/extraccion/71799891?page=1&size=10"
+```
+
+**Ejemplo JavaScript/TypeScript:**
+```typescript
+async function obtenerDocumentosDocente(cedula: string, page = 1, size = 10) {
+  const response = await fetch(
+    `/api/v2/extraccion/${cedula}?page=${page}&size=${size}`
+  );
+  
+  if (!response.ok) {
+    throw new Error('Error al obtener documentos');
+  }
+  
+  const data = await response.json();
+  return data.data;
+}
+
+// Uso
+const resultado = await obtenerDocumentosDocente('71799891', 1, 20);
+console.log('Total documentos:', resultado.paginacion.total);
+console.log('Documentos en página 1:', resultado.documentos);
+```
+
+**Handlers/Services:**
+- `AIController::getDocumentosDocente()`
+- Proxy a `rund-ai:8001/extraction/professor/{cedula}`
+- Enriquecimiento local: añade `json_nombre` para documentos completados
+
+**Características:**
+- **Paginación**: Soporta offset/limit para manejo eficiente de grandes volúmenes
+- **Información completa**: Incluye estado, confianza, timestamps y path del archivo
+- **JSON side-car**: Campo `json_nombre` apunta al JSON extraído en OpenKM
+- **Estados**: pendiente, procesando, completado, error
+
+**Casos de uso:**
+- Listar documentos extraídos de un docente
+- Verificar estado de procesamiento
+- Obtener nombre del JSON side-car para consultas posteriores
+- Monitoreo del progreso de un docente
+
+---
+
+### 10.3 GET /api/v2/extraccion/json/{cedula}/{nombre_json}
+
+**Descripción:** Obtiene el contenido del archivo JSON side-car extraído desde OpenKM. El JSON contiene los datos estructurados extraídos del documento original por rund-ai.
+
+**Controller:** `AIController::getJsonExtraido()`
+
+**Parámetros de entrada:**
+- **Path parameters:**
+  - `cedula` (string, requerido): Cédula del docente (4-20 dígitos)
+  - `nombre_json` (string, requerido): Nombre del archivo JSON (ej: "cedula.json", "certificado_laboral.json")
+
+**Validaciones:**
+- `cedula` y `nombre_json` son requeridos
+- El archivo JSON debe existir en OpenKM bajo la ruta del docente
+- El JSON debe contener contenido válido
+
+**Respuesta exitosa (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "cedula": "71799891",
+    "nombre_json": "cedula.json",
+    "uuid": "16acbc5c-4d9d-4152-a39a-9783a1536943",
+    "datos": {
+      "tipo_documento": "CC",
+      "numero": "71799891",
+      "nombres": "JUAN CARLOS",
+      "apellidos": "PEREZ GOMEZ",
+      "fecha_nacimiento": "1980-05-15",
+      "fecha_expedicion": "2010-03-20",
+      "lugar_expedicion": "BOGOTA D.C.",
+      "sexo": "M",
+      "rh": "O+"
+    }
+  }
+}
+```
+
+**Códigos de error:**
+- `400`: Parámetros requeridos faltantes
+- `404`: Archivo JSON no encontrado en OpenKM
+- `500`: Error al leer o decodificar JSON
+
+**Ejemplo cURL:**
+```bash
+curl -X GET "http://localhost:3000/api/v2/extraccion/json/71799891/cedula.json"
+```
+
+**Ejemplo JavaScript/TypeScript:**
+```typescript
+async function obtenerDatosExtraidos(cedula: string, nombreJson: string) {
+  const response = await fetch(
+    `/api/v2/extraccion/json/${cedula}/${encodeURIComponent(nombreJson)}`
+  );
+  
+  if (!response.ok) {
+    throw new Error('JSON no encontrado');
+  }
+  
+  const data = await response.json();
+  return data.data.datos; // Devuelve solo los datos extraídos
+}
+
+// Uso
+const datosExtraidos = await obtenerDatosExtraidos('71799891', 'cedula.json');
+console.log('Número de cédula:', datosExtraidos.numero);
+console.log('Fecha nacimiento:', datosExtraidos.fecha_nacimiento);
+```
+
+**Flujo de trabajo típico:**
+```typescript
+// 1. Obtener lista de documentos del docente
+const docsResult = await fetch('/api/v2/extraccion/71799891?page=1&size=50')
+  .then(r => r.json());
+
+// 2. Para cada documento completado, obtener el JSON extraído
+for (const doc of docsResult.data.documentos) {
+  if (doc.json_nombre) {
+    const jsonData = await fetch(
+      `/api/v2/extraccion/json/71799891/${doc.json_nombre}`
+    ).then(r => r.json());
+    
+    console.log(`Documento ${doc.tipo_documento}:`, jsonData.data.datos);
+  }
+}
+```
+
+**Handlers/Services:**
+- `AIController::getJsonExtraido()`
+- `OpenKM::findArchivo()` para buscar el JSON en OpenKM
+- `OpenKM::getArchivo()` para descargar el contenido
+- `json_decode()` para parsear el JSON
+
+**Ubicación en OpenKM:**
+- Ruta base: `/okm:root/RUND/DOCENTES/HOJAS_DE_VIDA/{cedula}/`
+- Patrón: `{nombre_documento}.json` (ej: cedula.json, certificado_laboral.json)
+
+**Características:**
+- **Datos estructurados**: JSON con esquema validado según tipo de documento
+- **Integración OpenKM**: Acceso directo a archivos side-car
+- **Encodificación URL**: El nombre del JSON se codifica automáticamente
+- **Validación**: Verifica que el JSON sea válido antes de retornarlo
+
+**Casos de uso:**
+- Consultar datos extraídos sin procesar el documento original
+- Validar datos extraídos correctamente
+- Alimentar formularios con datos pre-llenados
+- Exportar datos a sistemas externos
+- Auditoría y verificación de extracciones
+
+---
+
 ## Tabla Resumen de Todos los Endpoints
 
 | # | Método | Endpoint | Controller | Handler/Service | Descripción |
@@ -2569,8 +2910,12 @@ curl -X POST http://localhost:3000/api/v2/ai/extraer \
 | 32 | GET | `/api/v2/firmas/lista` | FirmasController::getLista | FirmasHandlers::getFirmas | Listar firmas disponibles |
 | 33 | GET | `/api/v2/firmas/{uuid}` | FirmasController::show | - | Obtener firma por UUID (501) |
 | 34 | POST | `/api/v2/firmas/subir` | FirmasController::subir | FileHandlers::postFile | Subir nueva firma |
-| **AI** |
+| **AI Y EXTRACCIÓN** |
 | 35 | POST | `/api/v2/ai/extraer` | AIController::extraer | AIHandlers::extraeDatos | Extraer datos con IA/OCR |
+| 36 | GET | `/api/v2/ai/queue/stats` | AIController::getQueueStats | curl → rund-ai | Estadísticas cola extracción |
+| 37 | GET | `/api/v2/extraccion/stats` | AIController::getStatsExtraccion | curl → rund-ai | Estadísticas índice extracción |
+| 38 | GET | `/api/v2/extraccion/{cedula}` | AIController::getDocumentosDocente | curl → rund-ai | Documentos extraídos docente (paginado) |
+| 39 | GET | `/api/v2/extraccion/json/{cedula}/{nombre_json}` | AIController::getJsonExtraido | OpenKM::findArchivo | Contenido JSON side-car extraído |
 
 ---
 

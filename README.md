@@ -153,7 +153,11 @@ POST   /api/v2/firmas/subir     # Subir firma
 
 ### 🤖 Inteligencia Artificial
 ```http
-POST   /api/v2/ai/extraer    # Extraer datos con IA
+POST   /api/v2/ai/extraer                  # Extraer datos con IA
+GET    /api/v2/ai/queue/stats              # Estadísticas de la cola de extracción
+GET    /api/v2/extraccion/stats            # Estadísticas del índice de extracción
+GET    /api/v2/extraccion/{cedula}         # Documentos extraídos de un docente
+GET    /api/v2/extraccion/json/{cedula}/{nombre}  # Contenido del JSON extraído
 ```
 
 ## 📖 Ejemplos de Uso
