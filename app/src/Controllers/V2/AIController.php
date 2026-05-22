@@ -205,4 +205,94 @@ class AIController extends BaseController
             return $this->errorResponse('Error consultando cola: ' . $e->getMessage(), 500);
         }
     }
+
+    public function getDocumentosDocente(array $params = []): array
+    {
+        if (!isset($params['cedula'])) return $this->errorResponse('Cédula es requerida', 400);
+        $cedula = $params['cedula'];
+        $aiUrl  = $_ENV['RUND_AI_URL'] ?? 'http://rund-ai:8001';
+
+        $ch = curl_init("$aiUrl/extraction/professor/$cedula");
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($httpCode !== 200) return $this->errorResponse('Error consultando rund-ai', 500);
+
+        $data    = json_decode($response, true);
+        $allDocs = $data['documents'] ?? [];
+        $query   = $this->getQueryParams();
+        $page    = max(1, (int)($query['page']  ?? 1));
+        $size    = min(50, max(1, (int)($query['size'] ?? 10)));
+        $total   = count($allDocs);
+        $items   = array_slice($allDocs, ($page - 1) * $size, $size);
+
+        // Añadir nombre del JSON side-car para documentos completados
+        foreach ($items as &$doc) {
+            if (($doc['status'] ?? '') === 'completado' && !empty($doc['file_path'])) {
+                $doc['json_nombre'] = pathinfo(basename($doc['file_path']), PATHINFO_FILENAME) . '.json';
+            } else {
+                $doc['json_nombre'] = null;
+            }
+        }
+
+        return $this->successResponse([
+            'cedula'     => $cedula,
+            'documentos' => $items,
+            'paginacion' => [
+                'page'  => $page,
+                'size'  => $size,
+                'total' => $total,
+                'pages' => (int)ceil($total / max(1, $size)),
+            ],
+        ]);
+    }
+
+    public function getJsonExtraido(array $params = []): array
+    {
+        $cedula     = $params['cedula']      ?? null;
+        $nombreJson = $params['nombre_json'] ?? null;
+        if (!$cedula || !$nombreJson) return $this->errorResponse('Parámetros requeridos', 400);
+
+        $path = \RUND\Config\Config::TAX_HOJAS . $cedula;
+        $uuid = \RUND\Core\OpenKM::findArchivo($nombreJson, $path);
+        if (!$uuid) return $this->errorResponse('JSON no encontrado', 404);
+
+        $contenido = \RUND\Core\OpenKM::getArchivo($uuid);
+        $datos = json_decode($contenido, true);
+        if (!is_array($datos)) return $this->errorResponse('Contenido JSON inválido', 500);
+
+        return $this->successResponse([
+            'cedula'      => $cedula,
+            'nombre_json' => $nombreJson,
+            'uuid'        => $uuid,
+            'datos'       => $datos,
+        ]);
+    }
+
+    public function getStatsExtraccion(array $params = []): array
+    {
+        $aiUrl = $_ENV['RUND_AI_URL'] ?? 'http://rund-ai:8001';
+        $ch    = curl_init("$aiUrl/extraction/statistics");
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10]);
+        $response = curl_exec($ch);
+        curl_close($ch);
+        $data = json_decode($response, true) ?? [];
+
+        $meta       = $data['metadata']                    ?? [];
+        $byStatus   = $data['statistics']['by_status']    ?? [];
+        $byCat      = $data['statistics']['by_category']  ?? [];
+        $total      = $meta['total_documents'] ?? 0;
+        $completado = $byStatus['completado']  ?? 0;
+
+        return $this->successResponse([
+            'total_documentos'     => $total,
+            'total_profesores'     => $meta['total_professors']  ?? 0,
+            'por_estado'           => $byStatus,
+            'por_categoria'        => $byCat,
+            'tasa_exito'           => $total > 0 ? (int)round(($completado / $total) * 100) : 0,
+            'ultima_actualizacion' => $meta['last_updated'] ?? null,
+            'meta'                 => ['source' => 'rund-ai', 'version' => '2.0'],
+        ]);
+    }
 }
