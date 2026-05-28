@@ -270,6 +270,66 @@ class AIController extends BaseController
         ]);
     }
 
+    public function retryErrorJobs(array $params = []): array
+    {
+        try {
+            $aiUrl = $_ENV['RUND_AI_URL'] ?? 'http://rund-ai:8001';
+            $ch = curl_init("$aiUrl/retry-error-jobs");
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => '',
+            ]);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode !== 200) {
+                return $this->errorResponse('Error ejecutando retry en rund-ai', 500);
+            }
+
+            $data = json_decode($response, true);
+            return $this->successResponse([
+                'retried' => $data['retried'] ?? 0,
+                'meta'    => ['source' => 'rund-ai', 'version' => '2.0'],
+            ]);
+        } catch (\Exception $e) {
+            error_log("ERROR retry-error-jobs: " . $e->getMessage());
+            return $this->errorResponse('Error ejecutando retry: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function resetStuckJobs(array $params = []): array
+    {
+        try {
+            $aiUrl = $_ENV['RUND_AI_URL'] ?? 'http://rund-ai:8001';
+            $ch = curl_init("$aiUrl/reset-stuck-jobs");
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => '',
+            ]);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode !== 200) {
+                return $this->errorResponse('Error ejecutando reset en rund-ai', 500);
+            }
+
+            $data = json_decode($response, true);
+            return $this->successResponse([
+                'resetted' => $data['resetted'] ?? 0,
+                'meta'     => ['source' => 'rund-ai', 'version' => '2.0'],
+            ]);
+        } catch (\Exception $e) {
+            error_log("ERROR reset-stuck-jobs: " . $e->getMessage());
+            return $this->errorResponse('Error ejecutando reset: ' . $e->getMessage(), 500);
+        }
+    }
+
     public function getStatsExtraccion(array $params = []): array
     {
         $aiUrl = $_ENV['RUND_AI_URL'] ?? 'http://rund-ai:8001';
