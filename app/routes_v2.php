@@ -141,6 +141,12 @@ function setupRoutesV2(Router $router): void
 			// Webhook para callbacks de rund-ai
 			$router->post('/webhook/extraction-complete', [AIController::class, 'extractionComplete']);
 
+			// Re-encolar documentos en "error" a "pendiente"
+			$router->post('/retry-error-jobs', [AIController::class, 'retryErrorJobs']);
+
+			// Reset de jobs bloqueados en estado "procesando"
+			$router->post('/reset-stuck-jobs', [AIController::class, 'resetStuckJobs']);
+
 			// Estadísticas de extracción
 			$router->get('/extraction/statistics', [AIController::class, 'getExtractionStatistics']);
 			$router->get('/extraction/professor/{cedula}', [AIController::class, 'getProfesorExtraction']);
