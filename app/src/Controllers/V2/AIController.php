@@ -373,7 +373,7 @@ class AIController extends BaseController
             $ch = curl_init("$aiUrl/retry-error-jobs");
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_TIMEOUT        => 90, // Puede esperar el lock de workers activos
                 CURLOPT_POST           => true,
                 CURLOPT_POSTFIELDS     => '',
             ]);
@@ -403,7 +403,7 @@ class AIController extends BaseController
             $ch = curl_init("$aiUrl/reset-stuck-jobs");
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_TIMEOUT        => 90, // El reset puede esperar el lock de los workers activos
                 CURLOPT_POST           => true,
                 CURLOPT_POSTFIELDS     => '',
             ]);
