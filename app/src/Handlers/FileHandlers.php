@@ -615,21 +615,22 @@ class FileHandlers
       $propiedades = json_decode(OpenKM::consulta($query), true);
       $categoriasActuales = $propiedades["categories"] ?? [];
 
-      // Convertir categorías actuales al formato correcto si es necesario
+      // Normalizar al formato [['path'=>'...'], ...] y eliminar estados de extracción antiguos
+      // (evita acumulación de pendiente/procesando/completado/error en re-encolados)
       $categoriasArray = [];
       if (!empty($categoriasActuales)) {
-        // Si es un solo elemento, convertir a array
         if (isset($categoriasActuales["path"])) {
           $categoriasArray = [["path" => $categoriasActuales["path"]]];
         } else {
-          // Es un array, mantener formato
           foreach ($categoriasActuales as $cat) {
-            if (isset($cat["path"])) {
-              $categoriasArray[] = ["path" => $cat["path"]];
-            }
+            if (isset($cat["path"])) $categoriasArray[] = ["path" => $cat["path"]];
           }
         }
       }
+      $categoriasArray = array_values(array_filter(
+        $categoriasArray,
+        fn($c) => !str_starts_with($c["path"], Config::CTGR_EXTRACTION)
+      ));
 
       // 2. Añadir categoría "pendiente" para extracción
       $categoriaPendiente = Config::CTGR_EXTRACTION . "pendiente";
