@@ -144,6 +144,12 @@ function setupRoutesV2(Router $router): void
 			// Re-encolar documentos en "error" a "pendiente"
 			$router->post('/retry-error-jobs', [AIController::class, 'retryErrorJobs']);
 
+			// Scheduler asíncrono de extracción nocturna
+			$router->get('/scheduler/status', [AIController::class, 'getSchedulerStatus']);
+			$router->post('/scheduler/start',  [AIController::class, 'startScheduler']);
+			$router->post('/scheduler/pause',  [AIController::class, 'pauseScheduler']);
+			$router->post('/scheduler/config', [AIController::class, 'configScheduler']);
+
 			// Reset de jobs bloqueados en estado "procesando"
 			$router->post('/reset-stuck-jobs', [AIController::class, 'resetStuckJobs']);
 

@@ -270,6 +270,82 @@ class AIController extends BaseController
         ]);
     }
 
+    // ─── Scheduler ────────────────────────────────────────────────────────────
+
+    private function schedulerStateFile(): string
+    {
+        return '/var/www/html/cli/scheduler_state.json';
+    }
+
+    private function readSchedulerState(): array
+    {
+        $file = $this->schedulerStateFile();
+        if (!file_exists($file)) {
+            return [
+                'habilitado'       => false,
+                'hora_inicio'      => 22,
+                'hora_fin'         => 6,
+                'ultimo_run'       => null,
+                'ultimo_resultado' => null,
+                'actualizado_en'   => null,
+            ];
+        }
+        return json_decode(file_get_contents($file), true) ?? [];
+    }
+
+    private function writeSchedulerState(array $state): void
+    {
+        $state['actualizado_en'] = date('Y-m-d\TH:i:s');
+        file_put_contents($this->schedulerStateFile(), json_encode($state, JSON_PRETTY_PRINT));
+    }
+
+    /** GET /api/v2/ai/scheduler/status */
+    public function getSchedulerStatus(array $params = []): array
+    {
+        return $this->successResponse(['scheduler' => $this->readSchedulerState()]);
+    }
+
+    /** POST /api/v2/ai/scheduler/start */
+    public function startScheduler(array $params = []): array
+    {
+        $state = $this->readSchedulerState();
+        $state['habilitado'] = true;
+        $this->writeSchedulerState($state);
+        return $this->successResponse(['scheduler' => $state, 'message' => 'Scheduler habilitado']);
+    }
+
+    /** POST /api/v2/ai/scheduler/pause */
+    public function pauseScheduler(array $params = []): array
+    {
+        $state = $this->readSchedulerState();
+        $state['habilitado'] = false;
+        $this->writeSchedulerState($state);
+        return $this->successResponse(['scheduler' => $state, 'message' => 'Scheduler pausado']);
+    }
+
+    /** POST /api/v2/ai/scheduler/config — body: { hora_inicio, hora_fin } */
+    public function configScheduler(array $params = []): array
+    {
+        $post  = $this->getPostData() ?? [];
+        $state = $this->readSchedulerState();
+
+        if (array_key_exists('hora_inicio', $post)) {
+            $hi = (int) $post['hora_inicio'];
+            if ($hi < 0 || $hi > 23) return $this->errorResponse('hora_inicio debe estar entre 0 y 23', 400);
+            $state['hora_inicio'] = $hi;
+        }
+        if (array_key_exists('hora_fin', $post)) {
+            $hf = (int) $post['hora_fin'];
+            if ($hf < 0 || $hf > 23) return $this->errorResponse('hora_fin debe estar entre 0 y 23', 400);
+            $state['hora_fin'] = $hf;
+        }
+
+        $this->writeSchedulerState($state);
+        return $this->successResponse(['scheduler' => $state, 'message' => 'Configuración actualizada']);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+
     public function retryErrorJobs(array $params = []): array
     {
         try {
