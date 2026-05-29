@@ -1,5 +1,5 @@
 # Actualiza rangos etarios diariamente a las 2 AM (hora de Bogotá)
 0 2 * * * php /var/www/html/cli/actualiza_rangos_etarios.php >> /var/log/supervisor/rund-cron.log 2>&1
 
-# Scheduler de extracción: encola documentos pendientes cada 30 min en horas muertas
-*/30 22,23,0,1,2,3,4,5,6 * * * php /var/www/html/cli/scheduler_extraccion.php >> /var/log/supervisor/rund-cron.log 2>&1
+# Scheduler de extracción: cada 30 min todo el día; el script verifica el rango horario configurado
+*/30 * * * * php /var/www/html/cli/scheduler_extraccion.php >> /var/log/supervisor/rund-cron.log 2>&1

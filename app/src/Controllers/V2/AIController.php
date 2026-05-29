@@ -16,6 +16,8 @@ namespace RUND\Controllers\V2;
 
 use RUND\Controllers\BaseController;
 use RUND\Handlers\AIHandlers;
+use RUND\Config\Config;
+use RUND\Core\OpenKM;
 
 class AIController extends BaseController
 {
@@ -79,11 +81,59 @@ class AIController extends BaseController
         try {
             $result = AIHandlers::procesarCallbackExtraccion($postData);
 
+            // === Clasificación automática por IA ===
+            // Si el worker envió una clasificación con confianza ≥ 0.8, añadir categoría en OpenKM
+            $iaClasificacion = $postData['ia_classification'] ?? null;
+            $iaAplicada = false;
+            if (
+                $postData['status'] === 'completed'
+                && is_array($iaClasificacion)
+                && isset($iaClasificacion['confidence'], $iaClasificacion['type'])
+                && (float) $iaClasificacion['confidence'] >= 0.8
+            ) {
+                $uuid       = $postData['document_id'];
+                $tipoNorm   = strtoupper(str_replace([' ', '-'], '_', $iaClasificacion['type']));
+                $catPath    = Config::CTGR_DOCS_HOJAS . 'IA_CLASIFICADO/' . $tipoNorm;
+
+                try {
+                    // Crear la categoría si no existe
+                    OpenKM::creaCarpetas([$catPath], Config::ROOT_CTG);
+
+                    // Obtener categorías actuales del documento
+                    $propsRaw     = OpenKM::consulta('document/getProperties?docId=' . urlencode($uuid));
+                    $props        = json_decode($propsRaw, true) ?? [];
+                    $catsActuales = $props['categories'] ?? [];
+
+                    // Normalizar a array de ['path' => '...']
+                    $catsArray = [];
+                    if (isset($catsActuales['path'])) {
+                        $catsArray = [['path' => $catsActuales['path']]];
+                    } else {
+                        foreach ((array) $catsActuales as $c) {
+                            if (isset($c['path'])) $catsArray[] = ['path' => $c['path']];
+                        }
+                    }
+                    $catsArray[] = ['path' => $catPath];
+
+                    OpenKM::consulta('document/setProperties', 'PUT', [
+                        'uuid'       => $uuid,
+                        'categories' => $catsArray,
+                    ]);
+
+                    $iaAplicada = true;
+                    error_log("IA_CLASIFICADO aplicado: uuid=$uuid tipo=$tipoNorm conf=" . $iaClasificacion['confidence']);
+                } catch (\Exception $iaEx) {
+                    // No bloquear el webhook si la categoría falla
+                    error_log("ERROR aplicando IA_CLASIFICADO: " . $iaEx->getMessage());
+                }
+            }
+
             return $this->successResponse([
-                'message' => 'Callback procesado correctamente',
-                'document_id' => $postData['document_id'],
-                'status' => $postData['status'],
-                'processed' => $result
+                'message'           => 'Callback procesado correctamente',
+                'document_id'       => $postData['document_id'],
+                'status'            => $postData['status'],
+                'ia_clasificado'    => $iaAplicada,
+                'processed'         => $result
             ]);
 
         } catch (\Exception $e) {
