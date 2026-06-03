@@ -177,8 +177,10 @@ class DocumentosInternosController extends BaseController
 				return $this->errorResponse('Error al serializar JSON', 400);
 			}
 
-			// Verificar si ya existe el archivo
-			$uuid = OpenKM::findArchivo($filename, $parentPath);
+			// Verificar si ya existe el archivo usando ruta directa (getNodeUuid es
+			// más fiable que findArchivo, que depende del índice de búsqueda y puede
+			// devolver null aunque el archivo exista, causando que createSimple falle).
+			$uuid = OpenKM::getFileUuidByPath($jsonPath);
 
 			// Crear archivo temporal con el contenido JSON
 			$tempFile = tempnam(sys_get_temp_dir(), 'rund_json_');

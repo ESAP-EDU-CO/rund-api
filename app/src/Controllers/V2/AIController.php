@@ -276,7 +276,7 @@ class AIController extends BaseController
 
         $path = \RUND\Config\Config::TAX_HOJAS . $cedula;
         $uuid = \RUND\Core\OpenKM::findArchivo($nombreJson, $path);
-        if (!$uuid) return $this->errorResponse('JSON no encontrado', 404);
+        if (!$uuid) return $this->successResponse(['cedula' => $cedula, 'nombre_json' => $nombreJson, 'uuid' => null, 'datos' => null]);
 
         $contenido = \RUND\Core\OpenKM::getArchivo($uuid);
         $datos = json_decode($contenido, true);
