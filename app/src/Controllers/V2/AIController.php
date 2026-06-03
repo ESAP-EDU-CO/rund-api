@@ -426,6 +426,41 @@ class AIController extends BaseController
         }
     }
 
+    public function searchDocuments(array $params = []): array
+    {
+        $query = trim($this->getQueryParams()['q'] ?? '');
+        if ($query === '') {
+            return $this->errorResponse('Parámetro "q" es requerido', 400);
+        }
+
+        $limit  = min(50, max(1, (int)($this->getQueryParams()['limit'] ?? 10)));
+        $aiUrl  = $_ENV['RUND_AI_URL'] ?? 'http://rund-ai:8001';
+
+        $ch = curl_init("$aiUrl/search");
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_POST           => true,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_POSTFIELDS     => json_encode(['query' => $query, 'limit' => $limit]),
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            return $this->errorResponse('Error consultando búsqueda en rund-ai', 500);
+        }
+
+        $data = json_decode($response, true);
+        return $this->successResponse([
+            'query'   => $query,
+            'results' => $data['results'] ?? [],
+            'total'   => $data['total']   ?? 0,
+            'meta'    => ['source' => 'rund-ai', 'version' => '2.0'],
+        ]);
+    }
+
     public function getStatsExtraccion(array $params = []): array
     {
         $aiUrl = $_ENV['RUND_AI_URL'] ?? 'http://rund-ai:8001';
