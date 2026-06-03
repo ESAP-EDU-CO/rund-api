@@ -40,54 +40,73 @@ class AIHandlers
   }
 
   /**
-   * Procesa el callback de extracción completada desde rund-ai
+   * Procesa el callback de extracción completada desde rund-ai.
    *
-   * @param array $callbackData Datos del callback desde rund-ai
+   * Preserva todas las categorías existentes del documento: sólo reemplaza las
+   * categorías de CTGR_EXTRACTION (pendiente/procesando/completado/error) y
+   * añade opcionalmente categorías extra (p.ej. IA_CLASIFICADO).
+   *
+   * @param array $callbackData   Datos del callback desde rund-ai
+   * @param array $extraCategorias Rutas de categorías adicionales a añadir (ya creadas o se crean aquí)
    * @return array Resultado del procesamiento
    */
-  public static function procesarCallbackExtraccion(array $callbackData): array
+  public static function procesarCallbackExtraccion(array $callbackData, array $extraCategorias = []): array
   {
     $documentId = $callbackData['document_id'];
-    $status = $callbackData['status'];
-    $extraction = $callbackData['extraction'] ?? null;
-    $error = $callbackData['error'] ?? null;
+    $status     = $callbackData['status'];
+    $extraction     = $callbackData['extraction']      ?? null;
+    $error          = $callbackData['error']           ?? null;
     $processingInfo = $callbackData['processing_info'] ?? [];
 
     $salida = [
       'document_id' => $documentId,
-      'status' => $status,
-      'updated_at' => date('Y-m-d H:i:s')
+      'status'      => $status,
+      'updated_at'  => date('Y-m-d H:i:s'),
     ];
 
     try {
-      // Actualizar categoría según el estado
-      $categoria = match($status) {
+      // 1. Determinar nueva categoría de estado de extracción
+      $categoriaEstado = match($status) {
         'completed' => Config::CTGR_EXTRACTION . 'completado',
-        'failed' => Config::CTGR_EXTRACTION . 'error',
-        default => Config::CTGR_EXTRACTION . 'procesando'
+        'failed'    => Config::CTGR_EXTRACTION . 'error',
+        default     => Config::CTGR_EXTRACTION . 'procesando',
       };
+      OpenKM::creaCarpetas([$categoriaEstado], Config::ROOT_CTG);
 
-      // Crear categoría si no existe
-      OpenKM::creaCarpetas([$categoria], Config::ROOT_CTG);
+      // 2. Leer categorías actuales del documento
+      $propsRaw    = OpenKM::consulta('document/getProperties?docId=' . urlencode($documentId));
+      $props       = json_decode($propsRaw, true) ?? [];
+      $catsActuales = $props['categories'] ?? [];
 
-      // Actualizar documento en OpenKM
-      $postData = [
-        "uuid" => $documentId,
-        "categories" => [
-          ["path" => $categoria]
-        ]
-      ];
+      // 3. Normalizar y filtrar: eliminar sólo las categorías de extracción antiguas
+      $catsArray = self::normalizarCategorias($catsActuales);
+      $catsArray = array_values(array_filter(
+        $catsArray,
+        fn($c) => !str_starts_with($c['path'], Config::CTGR_EXTRACTION)
+      ));
 
-      $updateResult = OpenKM::consulta("document/setProperties", "PUT", $postData);
-      $salida['openkm_updated'] = true;
+      // 4. Añadir nueva categoría de estado
+      $catsArray[] = ['path' => $categoriaEstado];
 
-      // Si fue exitosa, guardar detalles adicionales
-      if ($status === 'completed' && $extraction) {
-        $salida['extraction'] = $extraction;
-        $salida['processing_info'] = $processingInfo;
+      // 5. Añadir categorías extra (p.ej. IA_CLASIFICADO) sin duplicar
+      foreach ($extraCategorias as $extraPath) {
+        if (!in_array(['path' => $extraPath], $catsArray, true)) {
+          OpenKM::creaCarpetas([$extraPath], Config::ROOT_CTG);
+          $catsArray[] = ['path' => $extraPath];
+        }
       }
 
-      // Si falló, guardar el error
+      // 6. Una sola llamada setProperties con el conjunto completo
+      OpenKM::consulta('document/setProperties', 'PUT', [
+        'uuid'       => $documentId,
+        'categories' => $catsArray,
+      ]);
+      $salida['openkm_updated'] = true;
+
+      if ($status === 'completed' && $extraction) {
+        $salida['extraction']       = $extraction;
+        $salida['processing_info']  = $processingInfo;
+      }
       if ($status === 'failed' && $error) {
         $salida['error'] = $error;
       }
@@ -98,5 +117,20 @@ class AIHandlers
       error_log("ERROR actualizando documento tras callback: " . $e->getMessage());
       throw $e;
     }
+  }
+
+  /**
+   * Normaliza el campo 'categories' de OpenKM al formato [['path'=>'...'], ...].
+   * OpenKM devuelve un objeto cuando hay una sola categoría y un array cuando hay varias.
+   */
+  private static function normalizarCategorias(mixed $catsActuales): array
+  {
+    if (empty($catsActuales)) return [];
+    if (isset($catsActuales['path'])) return [['path' => $catsActuales['path']]];
+    $result = [];
+    foreach ((array) $catsActuales as $c) {
+      if (isset($c['path'])) $result[] = ['path' => $c['path']];
+    }
+    return $result;
   }
 }

@@ -79,61 +79,31 @@ class AIController extends BaseController
 
         // Procesar según el estado
         try {
-            $result = AIHandlers::procesarCallbackExtraccion($postData);
-
             // === Clasificación automática por IA ===
-            // Si el worker envió una clasificación con confianza ≥ 0.8, añadir categoría en OpenKM
+            // Calcular la ruta de categoría ANTES de llamar a AIHandlers, para que se
+            // aplique en la misma operación setProperties y no sobreescriba categorías.
+            $extraCategorias = [];
             $iaClasificacion = $postData['ia_classification'] ?? null;
-            $iaAplicada = false;
             if (
                 $postData['status'] === 'completed'
                 && is_array($iaClasificacion)
                 && isset($iaClasificacion['confidence'], $iaClasificacion['type'])
                 && (float) $iaClasificacion['confidence'] >= 0.8
             ) {
-                $uuid       = $postData['document_id'];
-                $tipoNorm   = strtoupper(str_replace([' ', '-'], '_', $iaClasificacion['type']));
-                $catPath    = Config::CTGR_DOCS_HOJAS . 'IA_CLASIFICADO/' . $tipoNorm;
-
-                try {
-                    // Crear la categoría si no existe
-                    OpenKM::creaCarpetas([$catPath], Config::ROOT_CTG);
-
-                    // Obtener categorías actuales del documento
-                    $propsRaw     = OpenKM::consulta('document/getProperties?docId=' . urlencode($uuid));
-                    $props        = json_decode($propsRaw, true) ?? [];
-                    $catsActuales = $props['categories'] ?? [];
-
-                    // Normalizar a array de ['path' => '...']
-                    $catsArray = [];
-                    if (isset($catsActuales['path'])) {
-                        $catsArray = [['path' => $catsActuales['path']]];
-                    } else {
-                        foreach ((array) $catsActuales as $c) {
-                            if (isset($c['path'])) $catsArray[] = ['path' => $c['path']];
-                        }
-                    }
-                    $catsArray[] = ['path' => $catPath];
-
-                    OpenKM::consulta('document/setProperties', 'PUT', [
-                        'uuid'       => $uuid,
-                        'categories' => $catsArray,
-                    ]);
-
-                    $iaAplicada = true;
-                    error_log("IA_CLASIFICADO aplicado: uuid=$uuid tipo=$tipoNorm conf=" . $iaClasificacion['confidence']);
-                } catch (\Exception $iaEx) {
-                    // No bloquear el webhook si la categoría falla
-                    error_log("ERROR aplicando IA_CLASIFICADO: " . $iaEx->getMessage());
-                }
+                $tipoNorm          = strtoupper(str_replace([' ', '-'], '_', $iaClasificacion['type']));
+                $extraCategorias[] = Config::CTGR_DOCS_HOJAS . 'IA_CLASIFICADO/' . $tipoNorm;
+                error_log("IA_CLASIFICADO pendiente: uuid={$postData['document_id']} tipo=$tipoNorm conf=" . $iaClasificacion['confidence']);
             }
 
+            $result     = AIHandlers::procesarCallbackExtraccion($postData, $extraCategorias);
+            $iaAplicada = !empty($extraCategorias) && ($result['openkm_updated'] ?? false);
+
             return $this->successResponse([
-                'message'           => 'Callback procesado correctamente',
-                'document_id'       => $postData['document_id'],
-                'status'            => $postData['status'],
-                'ia_clasificado'    => $iaAplicada,
-                'processed'         => $result
+                'message'        => 'Callback procesado correctamente',
+                'document_id'    => $postData['document_id'],
+                'status'         => $postData['status'],
+                'ia_clasificado' => $iaAplicada,
+                'processed'      => $result,
             ]);
 
         } catch (\Exception $e) {
@@ -403,7 +373,7 @@ class AIController extends BaseController
             $ch = curl_init("$aiUrl/retry-error-jobs");
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_TIMEOUT        => 90, // Puede esperar el lock de workers activos
                 CURLOPT_POST           => true,
                 CURLOPT_POSTFIELDS     => '',
             ]);
@@ -433,7 +403,7 @@ class AIController extends BaseController
             $ch = curl_init("$aiUrl/reset-stuck-jobs");
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_TIMEOUT        => 90, // El reset puede esperar el lock de los workers activos
                 CURLOPT_POST           => true,
                 CURLOPT_POSTFIELDS     => '',
             ]);
