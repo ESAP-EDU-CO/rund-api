@@ -103,6 +103,21 @@ class OpenKM
   }
 
   /**
+   * Busca el UUID de un archivo por su ruta completa en OpenKM (más fiable que findArchivo,
+   * que depende del índice de búsqueda y puede estar desactualizado).
+   * @param string $fullPath Ruta completa del archivo, ej. /okm:root/RUND/CONFIG/DATA/index.json
+   * @return string|null UUID del archivo o null si no existe
+   */
+  public static function getFileUuidByPath(string $fullPath): string | null
+  {
+    $resp = trim(self::consulta("repository/getNodeUuid?nodePath=" . urlencode($fullPath)));
+    if (empty($resp) || stripos($resp, 'Exception') !== false || stripos($resp, 'Error') !== false) {
+      return null;
+    }
+    return $resp;
+  }
+
+  /**
    * Elimina un archivo a partir de su UUID
    * @param string $uuid UUID del archivo a eliminar
    * @return string Respuesta de la API
