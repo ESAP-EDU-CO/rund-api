@@ -70,34 +70,41 @@ class DocumentService
    */
   public static function getInfoArchivosProfesor(string $cedula, bool $demografica = true): array | null
   {
-    $buscaNombre = $demografica ? "&name=" . urlencode("cedula") : "";
-    $query = "search/find?path=" . urlencode(Config::TAX_HOJAS . $cedula) . $buscaNombre;
+    $query = "search/find?path=" . urlencode(Config::TAX_HOJAS . $cedula);
     $resp = json_decode(OpenKM::consulta($query), true)["queryResult"];
     if (!$resp) return null;
 
     // Es información demográfica, que se obtiene de un único documento: la cédula
     if ($demografica) {
-      // Si hay múltiples resultados, tomar el primero que sea PDF
-      if (isset($resp[0])) {
-        // Hay múltiples resultados
-        foreach ($resp as $item) {
-          $nodo = $item["node"] ?? null;
-          if ($nodo && isset($nodo["mimeType"]) && $nodo["mimeType"] === "application/pdf") {
-            return self::extraeDatosDocumento($nodo, Config::TAX_HOJAS, Config::ROOT_CTG_PROF);
+      $items = isset($resp[0]) ? $resp : [$resp];
+      $tipoCedulaPath = Config::CTGR_DOCS_HOJAS . "TIPO/CEDULA";
+
+      // Prioridad 1: documento categorizado como TIPO/CEDULA
+      foreach ($items as $item) {
+        $nodo = $item["node"] ?? null;
+        if (!$nodo) continue;
+        $cates = $nodo["categories"] ?? [];
+        if (isset($cates["path"])) $cates = [$cates];
+        if (is_array($cates)) {
+          foreach ($cates as $cate) {
+            if (isset($cate["path"]) && $cate["path"] === $tipoCedulaPath) {
+              return self::extraeDatosDocumento($nodo, Config::TAX_HOJAS, Config::ROOT_CTG_PROF);
+            }
           }
         }
-        // Si no se encontró PDF, tomar el primero
-        $nodo = $resp[0]["node"] ?? null;
-        if ($nodo) {
-          return self::extraeDatosDocumento($nodo, Config::TAX_HOJAS, Config::ROOT_CTG_PROF);
-        }
-      } else {
-        // Un solo resultado
-        $nodo = $resp["node"] ?? null;
-        if ($nodo) {
+      }
+
+      // Prioridad 2: primer PDF directamente en la carpeta raíz del profesor (sin subcarpeta)
+      $rootPath = Config::TAX_HOJAS . $cedula . "/";
+      foreach ($items as $item) {
+        $nodo = $item["node"] ?? null;
+        if (!$nodo || ($nodo["mimeType"] ?? '') !== "application/pdf") continue;
+        $relPath = str_replace($rootPath, "", $nodo["path"] ?? '');
+        if (strlen($relPath) > 0 && !str_contains($relPath, '/')) {
           return self::extraeDatosDocumento($nodo, Config::TAX_HOJAS, Config::ROOT_CTG_PROF);
         }
       }
+
       return null;
     }
 
