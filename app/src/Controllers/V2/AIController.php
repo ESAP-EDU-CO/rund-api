@@ -426,6 +426,43 @@ class AIController extends BaseController
         }
     }
 
+    public function validateDocente(array $params = []): array
+    {
+        $cedula = $params['cedula'] ?? null;
+        if (!$cedula) return $this->errorResponse('Cédula es requerida', 400);
+
+        $aiUrl = $_ENV['RUND_AI_URL'] ?? 'http://rund-ai:8001';
+        $ch = curl_init("$aiUrl/validate");
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_POST           => true,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_POSTFIELDS     => json_encode(['cedula' => $cedula]),
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            return $this->errorResponse('Error consultando validación en rund-ai', 500);
+        }
+
+        $data = json_decode($response, true);
+        return $this->successResponse([
+            'cedula'   => $cedula,
+            'issues'   => $data['issues']            ?? [],
+            'score'    => $data['score']             ?? 0,
+            'resumen'  => [
+                'total_documentos' => $data['total_documentos'] ?? 0,
+                'completados'      => $data['completados']      ?? 0,
+                'en_error'         => $data['en_error']         ?? 0,
+                'pendientes'       => $data['pendientes']       ?? 0,
+            ],
+            'meta' => ['source' => 'rund-ai', 'version' => '2.0'],
+        ]);
+    }
+
     public function searchDocuments(array $params = []): array
     {
         $query = trim($this->getQueryParams()['q'] ?? '');
