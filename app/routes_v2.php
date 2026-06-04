@@ -162,6 +162,7 @@ function setupRoutesV2(Router $router): void
 		// --- Consulta de documentos extraídos (paginada) ---
 		$router->group('/extraccion', function (Router $router) {
 			$router->get('/stats',                    [AIController::class, 'getStatsExtraccion']);
+			$router->get('/buscar',                   [AIController::class, 'searchDocuments']);
 			$router->get('/json/{cedula}/{nombre_json}', [AIController::class, 'getJsonExtraido']);
 			$router->get('/{cedula}',                 [AIController::class, 'getDocumentosDocente']);
 		});
