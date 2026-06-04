@@ -161,10 +161,11 @@ function setupRoutesV2(Router $router): void
 
 		// --- Consulta de documentos extraídos (paginada) ---
 		$router->group('/extraccion', function (Router $router) {
-			$router->get('/stats',                    [AIController::class, 'getStatsExtraccion']);
-			$router->get('/buscar',                   [AIController::class, 'searchDocuments']);
+			$router->get('/stats',                       [AIController::class, 'getStatsExtraccion']);
+			$router->get('/buscar',                      [AIController::class, 'searchDocuments']);
+			$router->post('/validar/{cedula}',           [AIController::class, 'validateDocente']);
 			$router->get('/json/{cedula}/{nombre_json}', [AIController::class, 'getJsonExtraido']);
-			$router->get('/{cedula}',                 [AIController::class, 'getDocumentosDocente']);
+			$router->get('/{cedula}',                    [AIController::class, 'getDocumentosDocente']);
 		});
 
 		// --- Administración (lista blanca de roles) ---
