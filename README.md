@@ -12,7 +12,7 @@ RUND-API es el servicio backend del RUND de la ESAP. Proporciona una API RESTful
 
 ## 📋 Características
 
-- **🔧 API RESTful v2** - 27 endpoints completamente funcionales
+- **🔧 API RESTful v2** - 69 endpoints completamente funcionales
 - **📄 Generación de documentos** - Certificados en DOCX y PDF
 - **🗃️ Integración OpenKM** - Gestión de repositorio documental
 - **🤖 Inteligencia Artificial** - Extracción de datos con IA
@@ -67,25 +67,25 @@ docker build -t rund-api .
 ### Variables de Entorno
 
 ```bash
-# OpenKM Configuration
-OPENKM_HOST=rund-core
-OPENKM_PORT=8080
-OPENKM_USER=****
-OPENKM_PASS=****
+# OpenKM
+OPENKM_URL=http://rund-core:8080/OpenKM
+OPENKM_USER=okmAdmin
+OPENKM_PASSWORD=admin          # Cambiar en producción
 
-# AI Service
-AI_SERVICE_URL=http://rund-ai:11434
+# Servicios externos
+RUND_AUTH_URL=http://rund-auth:8080
+RUND_AI_URL=http://rund-ai:8001
 
-# OCR Service
-OCR_SERVICE_URL=http://rund-ocr:8000
+# Sesión BFF (cookie httpOnly)
+SESSION_SECRET=string_largo_aleatorio
+COOKIE_SECURE=false            # true en producción con HTTPS
+DEV_FAKE_LOGIN=false           # true solo en desarrollo
 
-# File Limits
-MAX_FILE_SIZE=52428800  # 50MB
-ALLOWED_EXTENSIONS=pdf,docx,xlsx,jpg,jpeg,png
+# Scheduler nocturno
+SCHEDULER_STATE_FILE=/var/www/html/cli/scheduler_state.json
 
 # Logging
 LOG_LEVEL=info
-LOG_PATH=/var/www/html/logs
 ```
 
 ## 📡 API Endpoints
@@ -151,13 +151,55 @@ GET    /api/v2/firmas/{uuid}    # Firma por UUID
 POST   /api/v2/firmas/subir     # Subir firma
 ```
 
+### 🔐 Autenticación (BFF para rund-auth)
+```http
+POST   /api/v2/auth/login               # Login LDAP (+ header X-App-Id: rund-mgp)
+POST   /api/v2/auth/dev/login           # Login desarrollo (DEV_FAKE_LOGIN=true)
+GET    /api/v2/auth/session             # Verificar sesión activa
+POST   /api/v2/auth/logout              # Cerrar sesión
+POST   /api/v2/auth/refresh             # Refrescar JWT
+GET    /api/v2/auth/health              # Health check del sistema de auth
+```
+
 ### 🤖 Inteligencia Artificial
 ```http
-POST   /api/v2/ai/extraer                  # Extraer datos con IA
-GET    /api/v2/ai/queue/stats              # Estadísticas de la cola de extracción
-GET    /api/v2/extraccion/stats            # Estadísticas del índice de extracción
-GET    /api/v2/extraccion/{cedula}         # Documentos extraídos de un docente
-GET    /api/v2/extraccion/json/{cedula}/{nombre}  # Contenido del JSON extraído
+POST   /api/v2/ai/extraer                           # Extraer datos con IA (puntual)
+POST   /api/v2/ai/webhook/extraction-complete        # Webhook de rund-ai (callback)
+POST   /api/v2/ai/reset-stuck-jobs                   # Resetear jobs bloqueados
+POST   /api/v2/ai/retry-error-jobs                   # Re-encolar jobs en error
+GET    /api/v2/ai/queue/stats                        # Estadísticas de la cola
+GET    /api/v2/ai/extraction/statistics              # Estadísticas del índice
+GET    /api/v2/ai/extraction/professor/{cedula}      # Documentos de un profesor
+GET    /api/v2/ai/scheduler/status                   # Estado del scheduler nocturno
+POST   /api/v2/ai/scheduler/start                    # Habilitar scheduler
+POST   /api/v2/ai/scheduler/pause                    # Pausar scheduler
+POST   /api/v2/ai/scheduler/config                   # Configurar rango horario
+```
+
+### 📊 Extracción de Datos (paginado)
+```http
+GET    /api/v2/extraccion/stats                      # Estadísticas resumen
+GET    /api/v2/extraccion/buscar?q={query}            # Búsqueda semántica
+POST   /api/v2/extraccion/validar/{cedula}            # Validar consistencia documental
+GET    /api/v2/extraccion/json/{cedula}/{nombre_json} # JSON side-car extraído
+GET    /api/v2/extraccion/{cedula}?page=1&size=10     # Documentos paginados
+```
+
+### 🔒 Microservicios Internos (solo red Docker)
+```http
+GET    /api/v2/internos/health
+POST   /api/v2/internos/documentos/obtener-uuid       # UUID por ruta completa
+GET    /api/v2/internos/documentos/descargar/{uuid}   # Descargar binario
+POST   /api/v2/internos/documentos/subir-json         # Subir JSON side-car
+PUT    /api/v2/internos/documentos/categoria          # Cambiar estado extracción
+```
+
+### 👤 Profesores (actualizado)
+```http
+GET    /api/v2/profesores/{cedula}                    # Info completa + demografía
+GET    /api/v2/profesores/{cedula}/archivos            # Solo archivos con estadísticas
+GET    /api/v2/profesores/{cedula}/demografia          # Solo datos demográficos
+GET    /api/v2/profesores/{cedula}/{nombre_archivo}    # UUID de un archivo por nombre
 ```
 
 ## 📖 Ejemplos de Uso
@@ -295,12 +337,14 @@ tail -f logs/errors.log
 
 ## 🔐 Seguridad
 
-- ✅ **Validación de entrada** - Todos los parámetros validados
-- ✅ **Límites de archivo** - Máximo 50MB por archivo
-- ✅ **Tipos permitidos** - Solo formatos seguros
-- ✅ **Sanitización** - Limpieza de datos de entrada
-- ✅ **Headers seguros** - CORS y headers de seguridad
-- ✅ **Rate limiting** - Protección contra abuso
+- ✅ **Autenticación BFF** — JWT almacenado en sesión del servidor (nunca al navegador)
+- ✅ **Sesión httpOnly** — Cookie `RUND_SESSION` con sameSite=Lax
+- ✅ **Validación JWT RS256** — Verificación con JWKS público de rund-auth
+- ✅ **Middleware global** — Todas las rutas `/api/v2/*` protegidas salvo whitelist pública
+- ✅ **Validación de entrada** — Parámetros validados en Controllers y Middleware
+- ✅ **Límites de archivo** — Máximo 50MB por archivo
+- ⚠️ **Rate limiting** — No implementado (pendiente para producción)
+- ⚠️ **CORS** — Permisivo en red interna; restringir en producción con lista blanca
 
 ## 🚀 Desarrollo
 
@@ -381,14 +425,13 @@ tar -czf rund-api-logs-$(date +%Y%m%d).tar.gz logs/
 - **Versión**: 2.0
 - **Licencia**: Propietaria ESAP
 
-## 🚀 Roadmap
+## 📚 Documentación de Migración
 
-- [ ] **GraphQL API** - Implementar endpoint GraphQL
-- [ ] **Cache Redis** - Mejorar performance con cache
-- [ ] **Rate Limiting** - Implementar límites por IP
-- [ ] **Métricas** - Dashboard de monitoreo
-- [ ] **Webhooks** - Notificaciones en tiempo real
-- [ ] **API Gateway** - Centralizar autenticación
+Para migrar rund-api de PHP 8.3 a Node.js, ver la guía completa:
+
+- **[docs/migracion/rund-api-migration-guide.md](../docs/migracion/rund-api-migration-guide.md)** — 69 endpoints documentados con curl, lógica de negocio, ADRs, gotchas y checklist de verificación.
+
+La guía fue diseñada para que un LLM ejecute la migración semiautomatizada sin necesidad de leer el código fuente PHP.
 
 ---
 
