@@ -40,6 +40,31 @@ use RUND\Middleware\{
  */
 function setupRoutesV2(Router $router): void
 {
+	// Rutas públicas: no requieren sesión activa
+	// El resto del árbol /api/v2 exige AuthMiddleware::authenticate()
+	$publicPrefixes = [
+		'/api/v2/auth/',        // login, logout, session, refresh, health
+		'/api/v2/system/',      // health checks
+		'/api/v2/archivos/imagenes/', // logo en página de login
+		'/api/v2/internos/',    // llamadas internas entre microservicios (Docker)
+		'/api/v2/ai/webhook/',  // callbacks de rund-ai tras extracción
+	];
+
+	$router->addGlobalMiddleware(
+		function (string $method, string $path) use ($publicPrefixes): bool {
+			if ($method === 'OPTIONS') {
+				return true; // preflight CORS siempre permitido
+			}
+			foreach ($publicPrefixes as $prefix) {
+				if ($path === rtrim($prefix, '/') || str_starts_with($path, $prefix)) {
+					return true;
+				}
+			}
+			$authenticate = AuthMiddleware::authenticate();
+			return $authenticate($method, $path);
+		}
+	);
+
 	// Grupo v2 - Nueva API RESTful
 	$router->group('/api/v2', function (Router $router) {
 
